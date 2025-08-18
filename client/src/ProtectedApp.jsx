@@ -9,6 +9,16 @@ import AdminDashboard from './components/AdminDashboard';
 
 const ProtectedApp = () => {
   const [code, setCode] = useState('');
+<<<<<<< HEAD
+=======
+  // Load code from localStorage if present (from GitHub review)
+  useEffect(() => {
+    const githubCode = localStorage.getItem('github_selected_code');
+    if (githubCode) {
+      setCode(githubCode);
+    }
+  }, []);
+>>>>>>> 6b2bfc3 (github integration and selecting a file)
   const [language, setLanguage] = useState('python');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -17,6 +27,19 @@ const ProtectedApp = () => {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
+<<<<<<< HEAD
+=======
+    // Handler for GitHub integration (to be implemented)
+    const handleGithubIntegration = () => {
+  // Redirect to GitHub OAuth authorization URL
+  const clientId = 'Ov23lik9tQOuJI8KleP9'; // Your real client ID
+  const redirectUri = 'http://localhost:5173/github-callback';
+  const scope = 'repo user';
+  const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
+  window.location.href = githubAuthUrl;
+    };
+
+>>>>>>> 6b2bfc3 (github integration and selecting a file)
   useEffect(() => {
   const fetchUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -88,6 +111,10 @@ const ProtectedApp = () => {
       <div style={styles.userRow}>
         <span>👋 {user?.email}</span>
         <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
+<<<<<<< HEAD
+=======
+  <button onClick={handleGithubIntegration} style={styles.githubBtn}>GitHub</button>
+>>>>>>> 6b2bfc3 (github integration and selecting a file)
       </div>
 
       {isAdmin && <AdminDashboard />}
@@ -155,6 +182,19 @@ const styles = {
     cursor: 'pointer',
     fontWeight: 'bold',
   },
+<<<<<<< HEAD
+=======
+    githubBtn: {
+      backgroundColor: '#24292f',
+      color: 'white',
+      border: 'none',
+      borderRadius: '6px',
+      padding: '0.4rem 1rem',
+      cursor: 'pointer',
+      fontWeight: 'bold',
+      marginLeft: '0.5rem',
+    },
+>>>>>>> 6b2bfc3 (github integration and selecting a file)
   controls: {
     display: 'flex',
     justifyContent: 'center',

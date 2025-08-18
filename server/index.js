@@ -11,7 +11,13 @@ require("dotenv").config();
 app.use(cors());
 app.use(express.json());
 
+<<<<<<< HEAD
 app.use('/api/rejections', require('./routes/rejections'));
+=======
+
+app.use('/api/rejections', require('./routes/rejections'));
+app.use('/api/github', require('./routes/github'));
+>>>>>>> 6b2bfc3 (github integration and selecting a file)
 app.use("/api/analyze", analyzeRoute);
 app.use("/api/feedback", feedbackRoute); // /api/feedback and /api/feedback/all
 app.use("/api/stats", dashboardStats);   // optional dashboard stats route
