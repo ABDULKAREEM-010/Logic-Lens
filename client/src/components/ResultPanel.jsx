@@ -155,25 +155,65 @@ const ResultPanel = ({ result, code, language, setCode }) => {
           {Array.isArray(result.geminiReview.suggestions) && result.geminiReview.suggestions.length > 0 && (
             <>
               <h3 style={{ marginTop: '1rem' }}>Gemini Suggestions</h3>
-              {result.geminiReview.suggestions.map((s, i) => (
-                <div key={i} style={styles.geminiSuggestion}>
-                  <p><strong>Line {s.line}</strong>: {s.message}</p>
+              {result.geminiReview.suggestions.map((s, i) => {
+                const key = `gemini-${s.message}`;
+                const status = feedbackStatus[key];
+                const hasFix = s.replacement?.to;
 
-                  {s.replacement?.from && (
-                    <>
-                      <p><strong>Original:</strong></p>
-                      <pre style={styles.codeBlock}>{s.replacement.from}</pre>
-                    </>
-                  )}
+                return (
+                  <div key={i} style={styles.geminiSuggestion}>
+                    <p><strong>Line {s.line}</strong>: {s.message}</p>
 
-                  {s.replacement?.to && (
-                    <>
-                      <p><strong>Suggested:</strong></p>
-                      <pre style={{ ...styles.codeBlock, backgroundColor: '#e8f5e9' }}>{s.replacement.to}</pre>
-                    </>
-                  )}
-                </div>
-              ))}
+                    {s.replacement?.from && (
+                      <>
+                        <p><strong>Original:</strong></p>
+                        <pre style={styles.codeBlock}>{s.replacement.from}</pre>
+                      </>
+                    )}
+
+                    {s.replacement?.to && (
+                      <>
+                        <p><strong>Suggested:</strong></p>
+                        <pre style={{ ...styles.codeBlock, backgroundColor: '#e8f5e9' }}>{s.replacement.to}</pre>
+                      </>
+                    )}
+
+                    {/* Show buttons only when there is a code suggestion */}
+                    {hasFix && (
+                      <>
+                        <textarea
+                          placeholder="Optional comment"
+                          value={comment}
+                          onChange={(e) => setComment(e.target.value)}
+                          style={styles.textarea}
+                        />
+
+                        <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
+                          <button
+                            onClick={() => handleAutoFix(s)}
+                            style={styles.acceptButton}
+                            disabled={status === 'submitting'}
+                          >
+                            ✅ Accept
+                          </button>
+
+                          <button
+                            onClick={() => handleFeedback(s, 'rejected')}
+                            style={styles.rejectButton}
+                            disabled={status === 'submitting'}
+                          >
+                            ❌ Reject
+                          </button>
+                        </div>
+
+                        {status === 'accepted' && <p style={{ color: 'green' }}>Feedback accepted ✅</p>}
+                        {status === 'rejected' && <p style={{ color: 'red' }}>Feedback rejected ❌</p>}
+                        {status === 'error' && <p style={{ color: 'red' }}>Error submitting feedback</p>}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </>
           )}
         </>

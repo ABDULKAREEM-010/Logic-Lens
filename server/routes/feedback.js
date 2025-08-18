@@ -15,7 +15,7 @@ router.post('/', async (req, res) => {
   if (!language || !originalCode || !suggestionText || !action) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
-   const suggestionType = getSuggestionType(suggestionText);
+  const suggestionType = getSuggestionType(suggestionText);
   const { error } = await supabase.from('feedback').insert([
     {
       language,
