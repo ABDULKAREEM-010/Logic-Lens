@@ -158,25 +158,41 @@ const GithubCallback = () => {
                 // Store code in localStorage and redirect to main page
                 localStorage.setItem('github_selected_code', fileContent);
                 localStorage.setItem('github_selected_filename', selectedFile.name);
-                navigate('/');
+                navigate('/editor');
               }}
             >Review Code</button>
           </div>
         </div>
       )}
-      <button style={{ marginTop: '2rem', padding: '0.5rem 1.5rem', borderRadius: 6, background: '#e53935', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
-        onClick={() => {
-          localStorage.removeItem('github_access_token');
-          localStorage.removeItem('github_user');
-          setUser(null);
-          setRepos([]);
-          setFiles([]);
-          setSelectedRepo(null);
-          setSelectedFile(null);
-          setFileContent('');
-          setStatus('Logged out from GitHub.');
-        }}
-      >Logout GitHub</button>
+      {user && (
+        <button style={{ marginTop: '2rem', padding: '0.5rem 1.5rem', borderRadius: 6, background: '#e53935', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+          onClick={() => {
+            localStorage.removeItem('github_access_token');
+            localStorage.removeItem('github_user');
+            setUser(null);
+            setRepos([]);
+            setFiles([]);
+            setSelectedRepo(null);
+            setSelectedFile(null);
+            setFileContent('');
+            setStatus('Logged out from GitHub.');
+          }}
+        >Logout GitHub</button>
+      )}
+      {!user && (
+        <button
+          style={{ marginTop: '2rem', padding: '0.5rem 1.5rem', borderRadius: 6, background: '#24292f', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
+          onClick={() => {
+            const clientId = 'Ov23lik9tQOuJI8KleP9';
+            const redirectUri = 'http://localhost:5173/github-callback';
+            const scope = 'repo user';
+            const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
+            window.location.href = githubAuthUrl;
+          }}
+        >
+          Login with GitHub
+        </button>
+      )}
       <button style={{ marginTop: '2rem', marginLeft: '1rem', padding: '0.5rem 1.5rem', borderRadius: 6, background: '#2196F3', color: '#fff', border: 'none', fontWeight: 'bold', cursor: 'pointer' }}
         onClick={() => navigate('/editor')}
       >Go to Editor</button>

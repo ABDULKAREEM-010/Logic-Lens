@@ -9,10 +9,18 @@ const Signup = () => {
 
   const handleSignup = async (e) => {
     e.preventDefault();
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({ email, password });
 
-    if (error) alert(error.message);
-    else navigate('/editor');
+    if (error) {
+      alert(error.message);
+    } else {
+      if (data.user && data.user.email_confirmed_at) {
+        navigate('/editor');
+      } else {
+        alert('Signup successful! Please check your email to confirm your account, then login.');
+        navigate('/login');
+      }
+    }
   };
 
   return (

@@ -56,10 +56,20 @@ ${code}
     const raw = response.text();
 
     // Extract JSON safely
-    const jsonStart = raw.indexOf("{");
-    const jsonEnd = raw.lastIndexOf("}");
-    const jsonText = raw.slice(jsonStart, jsonEnd + 1);
-    const parsed = JSON.parse(jsonText);
+    let parsed = null;
+    try {
+      const jsonStart = raw.indexOf("{");
+      const jsonEnd = raw.lastIndexOf("}");
+      const jsonText = raw.slice(jsonStart, jsonEnd + 1);
+      parsed = JSON.parse(jsonText);
+    } catch (e) {
+      console.error("Gemini JSON parse error:", e.message);
+      console.error("Gemini raw output:", raw);
+      return {
+        rawReview: "Gemini returned invalid JSON. Please check the model output.",
+        suggestions: []
+      };
+    }
 
     return {
       rawReview: parsed.review,

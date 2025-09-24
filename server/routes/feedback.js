@@ -1,23 +1,22 @@
+// server/routes/feedback.js
 const express = require('express');
 const router = express.Router();
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
+const { supabase } = require('../utils/supabaseClient');
+const { verifyUserToken } = require('../utils/auth');
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
-
-
-router.post('/', async (req, res) => {
+// POST feedback (protected route)
+router.post('/', verifyUserToken, async (req, res) => {
   const { language, originalCode, suggestionText, action, optionalReason } = req.body;
 
   if (!language || !originalCode || !suggestionText || !action) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
+
   const suggestionType = getSuggestionType(suggestionText);
+
   const { error } = await supabase.from('feedback').insert([
     {
+      user_id: req.user.id,   // ✅ tie feedback to Supabase Auth user
       language,
       code: originalCode,
       suggestion: suggestionText,
@@ -35,7 +34,8 @@ router.post('/', async (req, res) => {
 
   res.json({ message: 'Feedback stored successfully' });
 });
-// infer type from suggestionText
+
+// Infer type from suggestionText
 function getSuggestionType(text) {
   const lower = text.toLowerCase();
   if (lower.includes("syntax")) return "Syntax Error";
@@ -45,7 +45,7 @@ function getSuggestionType(text) {
   return "Other";
 }
 
-// GET all feedback entries
+// GET all feedback (admin/debug)
 router.get('/all', async (req, res) => {
   const { data, error } = await supabase.from('feedback').select('*');
   if (error) {

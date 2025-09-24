@@ -1,6 +1,6 @@
 // src/ProtectedApp.jsx
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabaseclient';
+import { supabase } from './supabaseClient';
 import CodeEditor from './components/CodeEditor';
 import ResultPanel from './components/ResultPanel';
 import ErrorStatsDashboard from './components/ErrorStatsDashboard';
@@ -9,8 +9,6 @@ import AdminDashboard from './components/AdminDashboard';
 
 const ProtectedApp = () => {
   const [code, setCode] = useState('');
-<<<<<<< HEAD
-=======
   // Load code from localStorage if present (from GitHub review)
   useEffect(() => {
     const githubCode = localStorage.getItem('github_selected_code');
@@ -18,7 +16,6 @@ const ProtectedApp = () => {
       setCode(githubCode);
     }
   }, []);
->>>>>>> 6b2bfc3 (github integration and selecting a file)
   const [language, setLanguage] = useState('python');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -27,8 +24,6 @@ const ProtectedApp = () => {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
-<<<<<<< HEAD
-=======
     // Handler for GitHub integration (to be implemented)
     const handleGithubIntegration = () => {
   // Redirect to GitHub OAuth authorization URL
@@ -39,7 +34,6 @@ const ProtectedApp = () => {
   window.location.href = githubAuthUrl;
     };
 
->>>>>>> 6b2bfc3 (github integration and selecting a file)
   useEffect(() => {
   const fetchUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -111,10 +105,7 @@ const ProtectedApp = () => {
       <div style={styles.userRow}>
         <span>👋 {user?.email}</span>
         <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
-<<<<<<< HEAD
-=======
   <button onClick={handleGithubIntegration} style={styles.githubBtn}>GitHub</button>
->>>>>>> 6b2bfc3 (github integration and selecting a file)
       </div>
 
       {isAdmin && <AdminDashboard />}
@@ -182,8 +173,6 @@ const styles = {
     cursor: 'pointer',
     fontWeight: 'bold',
   },
-<<<<<<< HEAD
-=======
     githubBtn: {
       backgroundColor: '#24292f',
       color: 'white',
@@ -194,7 +183,6 @@ const styles = {
       fontWeight: 'bold',
       marginLeft: '0.5rem',
     },
->>>>>>> 6b2bfc3 (github integration and selecting a file)
   controls: {
     display: 'flex',
     justifyContent: 'center',

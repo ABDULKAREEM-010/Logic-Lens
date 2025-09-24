@@ -1,13 +1,14 @@
 import React from 'react';
+import CodeMirror from '@uiw/react-codemirror';
+import { javascript } from '@codemirror/lang-javascript';
 
 const CodeEditor = ({ code, setCode }) => {
   return (
-    <textarea
-      className="code-editor"
-      rows="15"
+    <CodeMirror
       value={code}
-      onChange={(e) => setCode(e.target.value)}
-      placeholder="Write your code here..."
+      height="400px"
+      extensions={[javascript()]}
+      onChange={(value) => setCode(value)}
     />
   );
 };

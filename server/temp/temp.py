@@ -1,17 +1,3 @@
-<<<<<<< HEAD
-
-# Intentional Syntax Error (missing colon)
-def greet(name)
-    print("Hello", name)
-
-# Semantic Error: Using variable before assignment
-def calculate():
-    total += 10  # ❌ total not defined
-    print(total)
-
-
-calculate()
-=======
 #!/usr/bin/env python3
 import os
 import tempfile
@@ -515,4 +501,3 @@ def run_server():
 
 if __name__ == '__main__':
     run_server()
->>>>>>> 6b2bfc3 (github integration and selecting a file)

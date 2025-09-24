@@ -22,13 +22,21 @@ function AdminDashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
+        // Fetch feedback stats from backend
         const res = await axios.get("http://localhost:5000/api/stats");
+        const feedbacks = res.data.feedbacks || [];
+
+        // No Supabase email fetching; just use user_id
+        const feedbacksWithId = feedbacks.map(fb => ({
+          ...fb,
+          email: fb.user_id, // Display user_id instead
+        }));
 
         setStats({
           total: res.data.total || 0,
           accepted: res.data.accepted || 0,
           rejected: res.data.rejected || 0,
-          feedbacks: res.data.feedbacks || [],
+          feedbacks: feedbacksWithId,
           errorTypes: {
             syntax: res.data.errorTypes?.syntax || 0,
             semantic: res.data.errorTypes?.semantic || 0,
@@ -135,16 +143,14 @@ function AdminDashboard() {
               </tr>
             </thead>
             <tbody>
-              {stats.feedbacks.map((fb) => (
+              {stats.feedbacks.map(fb => (
                 <tr key={fb.id}>
-                  <td className="border px-4 py-2 text-xs">{fb.user_id}</td>
-                  <td className="border px-4 py-2">{fb.error_type}</td>
+                  <td className="border px-4 py-2 text-xs">{fb.email}</td>
+                  <td className="border px-4 py-2">{fb.suggestion_type || "-"}</td>
                   <td className="border px-4 py-2">
-                    {fb.accepted ? "✅" : "❌"}
+                    {fb.decision === "accepted" ? "✅" : "❌"}
                   </td>
-                  <td className="border px-4 py-2">
-                    {fb.rejection_comment || "-"}
-                  </td>
+                  <td className="border px-4 py-2">{fb.comment || "-"}</td>
                   <td className="border px-4 py-2">
                     <button
                       onClick={() => setSelectedFeedback(fb)}
@@ -163,16 +169,20 @@ function AdminDashboard() {
       {/* More Details Modal */}
       {selectedFeedback && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded shadow-lg max-w-2xl w-full">
+          <div className="bg-white p-6 rounded shadow-lg max-w-2xl w-full overflow-auto">
             <h2 className="text-xl font-bold mb-4">Feedback Details</h2>
-            <p><strong>User ID:</strong> {selectedFeedback.user_id}</p>
-            <p><strong>Error Type:</strong> {selectedFeedback.error_type}</p>
-            <p><strong>Accepted:</strong> {selectedFeedback.accepted ? "Yes" : "No"}</p>
-            <p><strong>Comment:</strong> {selectedFeedback.rejection_comment || "N/A"}</p>
+
+            <p><strong>User ID:</strong> {selectedFeedback.email}</p>
+            <p><strong>Type:</strong> {selectedFeedback.suggestion_type || "-"}</p>
+            <p><strong>Accepted:</strong> {selectedFeedback.decision === "accepted" ? "Yes" : "No"}</p>
+            <p><strong>Comment:</strong> {selectedFeedback.comment || "N/A"}</p>
+
             <p><strong>Original Code:</strong></p>
-            <pre className="bg-gray-100 p-2 overflow-auto max-h-40">{selectedFeedback.original_code}</pre>
-            <p><strong>Suggested Code:</strong></p>
-            <pre className="bg-gray-100 p-2 overflow-auto max-h-40">{selectedFeedback.suggested_code}</pre>
+            <pre className="bg-gray-100 p-2 overflow-auto max-h-60">{selectedFeedback.code || "-"}</pre>
+
+            <p><strong>Suggested Change:</strong></p>
+            <pre className="bg-gray-100 p-2 overflow-auto max-h-60">{selectedFeedback.suggestion || "-"}</pre>
+
             <div className="text-right mt-4">
               <button
                 onClick={() => setSelectedFeedback(null)}

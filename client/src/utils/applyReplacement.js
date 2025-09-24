@@ -7,11 +7,13 @@
  *   { line: number (1-based), newText: string }
  * @returns {string} - Updated code with replacements applied.
  */
-export function applyReplacements(code, replacements) {
+export function applyReplacements(code = '', replacements) {
+  if (!code) return ''; // safety check
+
   const lines = code.split('\n');
   const lineMap = new Map();
 
-  // Prepare a map for quick line replacement (handles multiple changes to same line)
+  // Map the new text for the line indexes
   for (const { line, newText } of replacements) {
     const lineIndex = line - 1;
     if (lineIndex >= 0 && lineIndex < lines.length) {
@@ -19,10 +21,8 @@ export function applyReplacements(code, replacements) {
     }
   }
 
-  // Replace lines
-  const updatedLines = lines.map((line, idx) =>
-    lineMap.has(idx) ? lineMap.get(idx) : line
-  );
+  // Replace lines while keeping other lines intact
+  const updatedLines = lines.map((line, idx) => lineMap.get(idx) ?? line);
 
   return updatedLines.join('\n');
 }

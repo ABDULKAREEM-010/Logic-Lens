@@ -80,7 +80,7 @@ router.post("/", async (req, res) => {
 
       res.json({
         suggestions: [...staticSuggestions, ...geminiSuggestions],
-        geminiReview: { rawReview, suggestions: geminiSuggestions }
+        //geminiReview: { rawReview, suggestions: geminiSuggestions }
       });
     } catch (error) {
       console.error("JavaScript analysis failed:", error);
@@ -96,7 +96,7 @@ router.post("/", async (req, res) => {
 
       res.json({
         suggestions: [...staticSuggestions, ...geminiSuggestions],
-        geminiReview: { rawReview, suggestions: geminiSuggestions }
+        //geminiReview: { rawReview, suggestions: geminiSuggestions }
       });
     } catch (err) {
       console.error("Java analysis failed:", err);
@@ -113,7 +113,7 @@ router.post("/", async (req, res) => {
 
       res.json({
         suggestions: [...staticSuggestions, ...geminiSuggestions],
-        geminiReview: { rawReview, suggestions: geminiSuggestions }
+        //geminiReview: { rawReview, suggestions: geminiSuggestions }
       });
     } catch (err) {
       console.error("C/C++ analysis failed:", err);
