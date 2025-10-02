@@ -12,30 +12,58 @@ router.post('/', verifyUserToken, async (req, res) => {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
-  const suggestionType = getSuggestionType(suggestionText);
-
-  const { error } = await supabase.from('feedback').insert([
-    {
-      user_id: req.user.id,   // ✅ tie feedback to Supabase Auth user
-      language,
-      code: originalCode,
-      suggestion: suggestionText,
-      decision: action,
-      comment: optionalReason,
-      timestamp: new Date().toISOString(),
-      suggestion_type: suggestionType
-    }
-  ]);
-
-  if (error) {
-    console.error('Supabase insert error:', error.message);
-    return res.status(500).json({ error: 'Failed to store feedback' });
+  if (!['accepted', 'rejected'].includes(action)) {
+    return res.status(400).json({ error: 'Invalid action value' });
   }
 
-  res.json({ message: 'Feedback stored successfully' });
+  const suggestionType = getSuggestionType(suggestionText);
+
+  try {
+    // Get team_id of the user from team_members table
+    const { data: teamData, error: teamError } = await supabase
+      .from('team_members')
+      .select('team_id')
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (teamError && teamError.code !== 'PGRST116') { // ignore "no rows found"
+      console.error('Error fetching user team:', teamError.message);
+      return res.status(500).json({ error: 'Failed to get user team' });
+    }
+
+    const team_id = teamData?.team_id || null;
+
+    // Insert feedback
+    const { data, error } = await supabase
+      .from('feedback')
+      .insert([
+        {
+          user_id: req.user.id,
+          team_id,
+          language,
+          code: originalCode,
+          suggestion: suggestionText,
+          decision: action,
+          comment: optionalReason,
+          suggestion_type: suggestionType
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase insert error:', error.message);
+      return res.status(500).json({ error: 'Failed to store feedback' });
+    }
+
+    res.json({ message: 'Feedback stored successfully', feedback: data });
+  } catch (err) {
+    console.error('Unexpected error:', err);
+    res.status(500).json({ error: 'Server error while storing feedback' });
+  }
 });
 
-// Infer type from suggestionText
+// Infer suggestion type from suggestionText
 function getSuggestionType(text) {
   const lower = text.toLowerCase();
   if (lower.includes("syntax")) return "Syntax Error";
@@ -45,14 +73,28 @@ function getSuggestionType(text) {
   return "Other";
 }
 
-// GET all feedback (admin/debug)
+// GET all feedback (optionally filter by team or user)
 router.get('/all', async (req, res) => {
-  const { data, error } = await supabase.from('feedback').select('*');
-  if (error) {
-    console.error('Error fetching feedback:', error.message);
-    return res.status(500).json({ error: 'Failed to fetch feedback' });
+  try {
+    const { team_id, user_id } = req.query;
+
+    let query = supabase.from('feedback').select('*');
+
+    if (team_id) query = query.eq('team_id', team_id);
+    if (user_id) query = query.eq('user_id', user_id);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching feedback:', error.message);
+      return res.status(500).json({ error: 'Failed to fetch feedback' });
+    }
+
+    res.json(data);
+  } catch (err) {
+    console.error('Unexpected error:', err);
+    res.status(500).json({ error: 'Server error while fetching feedback' });
   }
-  res.json(data);
 });
 
 module.exports = router;

@@ -17,4 +17,17 @@ async function verifyUserToken(req, res, next) {
   next();
 }
 
-module.exports = { verifyUserToken };
+// Add the missing getUserFromRequest function
+async function getUserFromRequest(req) {
+  const token = req.headers.authorization?.split('Bearer ')[1];
+  
+  if (!token) return null;
+
+  const { data, error } = await supabase.auth.getUser(token);
+  
+  if (error || !data?.user) return null;
+  
+  return data.user;
+}
+
+module.exports = { verifyUserToken, getUserFromRequest };

@@ -1,7 +1,7 @@
 // server/routes/rejections.js
 const express = require('express');
 const router = express.Router();
-const supabase = require('../utils/supabaseClient');
+const { supabase } = require('../utils/supabaseClient');
 const { getUserFromRequest } = require('../utils/auth');
 
 router.post('/', async (req, res) => {
