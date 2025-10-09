@@ -1,13 +1,33 @@
+// ✅ FINAL ResultPanel.jsx — Light Glassmorphism UI with Separate Static & Gemini Sections
 import React, { useState } from 'react';
-import { parseGeminiReview } from '../utils/parseGeminiReview';  // Adjust path if needed (or remove if unused)
-import { applyReplacements } from '../utils/applyReplacement';  // Adjust path if needed (or remove if unused)
-import { supabase } from '../supabaseClient';  // Adjust path if needed (or remove if unused)
+import { supabase } from '../supabaseClient';
+import { API_ENDPOINTS } from '../config/api';
+
+// ✅ Smart inline replacement — prevents duplication and replaces exact text if found
+const applyReplacements = (code, replacements) => {
+  let newCode = code;
+  replacements.forEach(({ line, newText, from }) => {
+    const lines = newCode.split('\n');
+    const i = Number(line) - 1;
+    if (i >= 0 && i < lines.length) {
+      if (from && lines[i].includes(from.trim())) {
+        // partial replace within same line
+        lines[i] = lines[i].replace(from.trim(), newText.trim());
+      } else {
+        // fallback: replace entire line
+        lines[i] = newText.trim();
+      }
+    }
+    newCode = lines.join('\n');
+  });
+  return newCode;
+};
 
 const standardComments = [
-  "Incorrect logic",
-  "Syntax error", 
-  "Poor readability",
-  "Missing edge cases"
+  'Incorrect logic',
+  'Syntax error',
+  'Poor readability',
+  'Missing edge cases',
 ];
 
 const ResultPanel = ({ result, code, language, setCode, filename }) => {
@@ -16,83 +36,25 @@ const ResultPanel = ({ result, code, language, setCode, filename }) => {
   const [feedbackStatus, setFeedbackStatus] = useState({});
   const [showRejectOptions, setShowRejectOptions] = useState({});
   const [collapsed, setCollapsed] = useState(false);
-  const [showGeminiReplacement, setShowGeminiReplacement] = useState({});
 
-  // CRITICAL DEBUG: Log exactly what props are received
-  console.log('=== ResultPanel RAW PROPS ===', {
-    result: result,
-    code: code?.substring(0, 100) + '...',
-    codeLength: code?.length,
-    language: language,
-    filename: filename,
-    resultType: typeof result,
-    resultKeys: result ? Object.keys(result) : 'NO_RESULT'
-  });
-
-  // FIXED: Robust data normalization that preserves all backend data
-  const normalizedResult = {
-    filename: filename || 'unknown',
-    geminiReview: result?.geminiReview || { rawReview: '', suggestions: [] },
-    suggestions: result?.suggestions || []
-  };
-
-  // Enhanced debug logging to track what data is received
-  console.log('=== ResultPanel received data ===', {
-    filename: normalizedResult.filename,
-    resultKeys: Object.keys(result || {}),
-    geminiReviewExists: !!normalizedResult.geminiReview,
-    rawReviewContent: normalizedResult.geminiReview?.rawReview?.substring(0, 200) || 'EMPTY',
-    rawReviewLength: normalizedResult.geminiReview?.rawReview?.length || 0,
-    totalSuggestionsCount: normalizedResult.suggestions.length,
-    geminiSuggestionsFromReview: normalizedResult.geminiReview?.suggestions?.length || 0
-  });
-
-  // FIXED: Proper suggestion separation with no data loss
-  const allSuggestions = normalizedResult.suggestions || [];
-  const staticSuggestions = allSuggestions.filter(s => s.source !== 'gemini');
-  
-  // Gemini suggestions can come from two sources - merge them without duplicates
-  const geminiFromReview = normalizedResult.geminiReview?.suggestions || [];
-  const geminiFromMain = allSuggestions.filter(s => s.source === 'gemini');
-  
-  // Use Set to avoid duplicates, then convert back to array
-  const geminiSuggestions = [
-    ...geminiFromReview,
-    ...geminiFromMain.filter(s => !geminiFromReview.some(gr => gr.message === s.message))
-  ];
-
-  // Enhanced debug logging
-  console.log('=== ResultPanel Debug Info ===', {
-    filename: normalizedResult.filename,
-    geminiReviewExists: !!normalizedResult.geminiReview,
-    rawReviewLength: normalizedResult.geminiReview.rawReview?.length || 0,
-    rawReviewPreview: normalizedResult.geminiReview.rawReview?.substring(0, 100) || 'EMPTY',
-    totalSuggestionsCount: allSuggestions.length,
-    staticSuggestionsCount: staticSuggestions.length,
-    geminiSuggestionsCount: geminiSuggestions.length,
-    geminiFromReviewCount: geminiFromReview.length,
-    geminiFromMainCount: geminiFromMain.length
-  });
+  const makeKey = (s, i) => `${s.line || i}-${s.message?.substring(0, 25) || s.title || ''}`;
 
   const getAccessToken = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    return session?.access_token;
+    return session?.access_token || null;
   };
 
-  const handleFeedback = async (suggestion, decision, autoFixApplied = false) => {
-    const key = `${suggestion.source || 'static'}-${suggestion.message?.substring(0, 20) || suggestion.title?.substring(0, 20) || Math.random()}`;
-    setFeedbackStatus(prev => ({ ...prev, [key]: 'submitting' }));
+  const handleFeedback = async (suggestion, decision, autoFixApplied = false, index = 0) => {
+    const key = makeKey(suggestion, index);
+    setFeedbackStatus((p) => ({ ...p, [key]: 'submitting' }));
 
     const token = await getAccessToken();
-    if (!token) {
-      console.error('No session token found');
-      setFeedbackStatus(prev => ({ ...prev, [key]: 'error' }));
-      return;
-    }
+    if (!token) return setFeedbackStatus((p) => ({ ...p, [key]: 'error' }));
 
-    const combinedComment = decision === 'rejected'
-      ? [...(selectedStandardComments[key] || []), comment].filter(Boolean).join('; ')
-      : comment;
+    const combinedComment =
+      decision === 'rejected'
+        ? [...(selectedStandardComments[key] || []), comment].filter(Boolean).join('; ')
+        : '';
 
     const payload = {
       language,
@@ -102,453 +64,254 @@ const ResultPanel = ({ result, code, language, setCode, filename }) => {
       optionalReason: combinedComment,
       autoFixApplied,
       source: suggestion.source || 'static',
-      suggestion_type: suggestion.type || 'syntax'
+      suggestion_type: suggestion.type || 'syntax',
     };
 
     try {
-      const res = await fetch('http://localhost:5000/api/feedback', {
+      const res = await fetch(API_ENDPOINTS.FEEDBACK, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
       });
-
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Server error');
 
-      if (!res.ok) {
-        console.error('Feedback error:', data.error);
-        setFeedbackStatus(prev => ({ ...prev, [key]: 'error' }));
-      } else {
-        setFeedbackStatus(prev => ({ ...prev, [key]: decision }));
-        if (decision === 'rejected') {
-          setComment('');
-          setSelectedStandardComments(prev => ({ ...prev, [key]: [] }));
-          setShowRejectOptions(prev => ({ ...prev, [key]: false }));
-        }
-      }
+      setFeedbackStatus((p) => ({ ...p, [key]: decision }));
+      setComment('');
+      setSelectedStandardComments((p) => ({ ...p, [key]: [] }));
+      setShowRejectOptions((p) => ({ ...p, [key]: false }));
     } catch (err) {
-      console.error('Network error:', err);
-      setFeedbackStatus(prev => ({ ...prev, [key]: 'error' }));
+      console.error(err);
+      setFeedbackStatus((p) => ({ ...p, [key]: 'error' }));
     }
   };
 
-  const handleAutoFix = async (suggestion) => {
-    if (suggestion.source === 'gemini') {
-      alert("Gemini suggestions provide full code examples. Copy-paste manually or review the replacement below.");
-      return;
+  // ✅ Updated to prevent duplicate or appended lines
+  const handleAutoFix = async (suggestion, index) => {
+    if (!setCode) return alert('Editor not linked.');
+
+    const line = suggestion.line;
+    const from = suggestion.replacement?.from;
+    const to = suggestion.replacement?.to;
+
+    if (!to || !line) {
+      return alert('Auto-fix not available for this suggestion.');
     }
 
-    if (!suggestion.replacement?.to || !suggestion.line) {
-      alert("Auto-fix not available for this suggestion.");
-      return;
+    const newCode = applyReplacements(code, [{ line, from, newText: to }]);
+    setCode(newCode);
+
+    await handleFeedback(suggestion, 'accepted', true, index);
+  };
+
+  const handleAcceptAll = async (suggestions, label) => {
+    const fixable = suggestions.filter((s) => s.replacement?.to);
+    if (fixable.length === 0) return alert(`No fixable ${label} suggestions found.`);
+
+    const newCode = applyReplacements(
+      code,
+      fixable.map((s) => ({ line: s.line, from: s.replacement?.from, newText: s.replacement?.to }))
+    );
+    setCode(newCode);
+
+    for (let i = 0; i < fixable.length; i++) {
+      await handleFeedback(fixable[i], 'accepted', true, i);
     }
-
-    const newCode = applyReplacements(code, [
-      { line: suggestion.line, newText: suggestion.replacement.to }
-    ]);
-
-    setCode?.(newCode);
-    await handleFeedback(suggestion, 'accepted', true);
+    alert(`✅ ${fixable.length} ${label} suggestions accepted and code updated.`);
   };
 
-  // Toggle Gemini replacement visibility
-  const toggleGeminiReplacement = (key) => {
-    setShowGeminiReplacement(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const toggleCheckbox = (index, key) => {
-    setSelectedStandardComments(prev => {
-      const copy = prev[key] || [];
-      const comment = standardComments[index];
+  const toggleCheckbox = (i, key) => {
+    setSelectedStandardComments((p) => {
+      const prevArr = p[key] || [];
+      const c = standardComments[i];
       return {
-        ...prev,
-        [key]: copy.includes(comment)
-          ? copy.filter(c => c !== comment)
-          : [...copy, comment]
+        ...p,
+        [key]: prevArr.includes(c)
+          ? prevArr.filter((x) => x !== c)
+          : [...prevArr, c],
       };
     });
   };
 
-  const handleAcceptAll = async () => {
-    if (!code) return;
-
-    // Only auto-apply static suggestions (skip Gemini)
-    const staticReplacements = staticSuggestions
-      ?.filter(s => s.replacement?.to)
-      .map(s => ({ line: s.line, newText: s.replacement.to, suggestion: s })) || [];
-
-    if (staticReplacements.length > 0) {
-      const newCode = applyReplacements(code, staticReplacements);
-      setCode?.(newCode);
-
-      for (const r of staticReplacements) {
-        await handleFeedback(r.suggestion, 'accepted', true);
-      }
-    }
-
-    // Alert about Gemini suggestions that need manual review
-    const geminiCount = geminiSuggestions.length;
-    if (geminiCount > 0) {
-      alert(`Applied ${staticReplacements.length} static fixes. Review ${geminiCount} AI suggestions manually.`);
-    } else if (staticReplacements.length === 0) {
-      alert('No auto-fixable suggestions found.');
+  const getSeverityBadgeClasses = (severity) => {
+    switch (severity?.toLowerCase()) {
+      case 'high':
+      case 'error':
+        return 'bg-red-500 text-white';
+      case 'medium':
+      case 'warning':
+        return 'bg-yellow-500 text-white';
+      case 'low':
+      case 'info':
+        return 'bg-blue-500 text-white';
+      default:
+        return 'bg-gray-500 text-white';
     }
   };
 
-  // FIXED: Complete suggestion card renderer with proper key generation
-  const renderSuggestionCard = (s, index, isGemini = false) => {
-    const key = `${isGemini ? 'gemini' : (s.source || 'static')}-${s.message?.substring(0, 20) || index}`;
+  const staticSuggestions = result?.suggestions?.filter((s) => s.source === 'static') || [];
+  const geminiSuggestions = result?.suggestions?.filter((s) => s.source === 'gemini') || [];
+  const geminiReview = result?.geminiReview?.rawReview || 'No Gemini review available.';
+
+  const renderSuggestionCard = (s, i) => {
+    const key = makeKey(s, i);
     const status = feedbackStatus[key];
 
     return (
       <div
-        key={key}
+        key={i}
+        className="rounded-xl shadow-md mb-6 p-5 border backdrop-blur-sm"
         style={{
-          border: '1px solid #e0e0e0',
-          borderRadius: '8px',
-          padding: '1rem',
-          backgroundColor: isGemini ? '#f0f8ff' : '#ffffff',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-          marginBottom: '1rem'
+          background: 'rgba(255,255,255,0.85)',
+          border: '1px solid rgba(200,200,255,0.3)',
         }}
       >
-        {/* Suggestion Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontWeight: '600', color: '#333' }}>
-            {isGemini ? '🔍' : '⚠️'} Line {s.line || 'N/A'} {isGemini ? '(AI Insight)' : `- ${s.symbol || s.type || 'Issue'}`}
-          </span>
+        <div className="flex justify-between items-center mb-2">
+          <h4 className="font-semibold text-lg text-gray-800">
+            Line {s.line || 'N/A'} — {s.symbol || s.type}
+          </h4>
           <span
-            style={{
-              backgroundColor: isGemini ? '#4285f4' : '#ffe0b2',
-              color: isGemini ? 'white' : '#b26a00',
-              borderRadius: '10px',
-              padding: '0.2rem 0.6rem',
-              fontSize: '0.75rem',
-              fontWeight: 'bold'
-            }}
+            className={`px-3 py-1 rounded-full text-xs font-bold ${getSeverityBadgeClasses(
+              s.severity
+            )}`}
           >
-            {isGemini ? 'AI Review' : (s.severity || 'Medium')}
+            {s.severity || 'Medium'}
           </span>
         </div>
+        <p className="text-gray-700 mb-3">{s.message}</p>
 
-        {/* Suggestion Message */}
-        <p style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>{s.message || 'No message available'}</p>
-
-        {/* Static Replacement (from/to) */}
-        {s.replacement?.from && !isGemini && (
-          <div>
-            <strong>Current:</strong>
-            <pre style={styles.codeBlock}>{s.replacement.from}</pre>
-          </div>
+        {s.replacement?.from && (
+          <pre className="bg-red-50 border-l-4 border-red-300 rounded-md p-2 text-sm text-gray-800">
+            {s.replacement.from}
+          </pre>
         )}
-        {s.replacement?.to && !isGemini && (
-          <div>
-            <strong>Suggested:</strong>
-            <pre style={{ ...styles.codeBlock, backgroundColor: '#e8f5e9' }}>{s.replacement.to}</pre>
-          </div>
+        {s.replacement?.to && (
+          <pre className="bg-green-50 border-l-4 border-green-300 rounded-md p-2 text-sm text-gray-800 mt-2">
+            {s.replacement.to}
+          </pre>
         )}
 
-        {/* Gemini Replacement (full snippet) */}
-        {isGemini && s.replacement && (
-          <>
-            <button
-              onClick={() => toggleGeminiReplacement(key)}
-              style={{
-                ...styles.button,
-                backgroundColor: '#4285f4',
-                marginTop: '0.5rem',
-                fontSize: '0.85rem'
-              }}
-            >
-              {showGeminiReplacement[key] ? 'Hide' : 'View'} Code Suggestion
-            </button>
-            {showGeminiReplacement[key] && (
-              <div>
-                <strong>AI Suggested Code:</strong>
-                <pre style={styles.codeBlock}>{s.replacement}</pre>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* Action Buttons */}
-        <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
-          {isGemini ? (
-            <>
-              <button
-                onClick={() => handleFeedback(s, 'accepted')}
-                style={{...styles.button, backgroundColor: '#4CAF50'}}
-                disabled={status === 'submitting'}
-              >
-                ✅ Accept AI Feedback
-              </button>
-              <button
-                onClick={() => setShowRejectOptions(prev => ({ ...prev, [key]: !prev[key] }))}
-                style={{...styles.button, backgroundColor: '#f44336'}}
-                disabled={status === 'submitting'}
-              >
-                ❌ Reject
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => handleAutoFix(s)}
-                style={{...styles.button, backgroundColor: '#4CAF50'}}
-                disabled={status === 'submitting' || !s.replacement?.to}
-              >
-                ✅ Accept & Apply Fix
-              </button>
-              <button
-                onClick={() => setShowRejectOptions(prev => ({ ...prev, [key]: !prev[key] }))}
-                style={{...styles.button, backgroundColor: '#f44336'}}
-                disabled={status === 'submitting'}
-              >
-                ❌ Reject
-              </button>
-            </>
-          )}
+        <div className="flex gap-3 mt-4">
+          <button
+            onClick={() => handleAutoFix(s, i)}
+            className="bg-green-600 text-green px-3 py-2 rounded-lg hover:bg-green-700"
+            disabled={status === 'submitting'}
+          >
+            {status === 'submitting' ? '⏳ Applying...' : '✅ Accept & Apply'}
+          </button>
+          <button
+            onClick={() =>
+              setShowRejectOptions((p) => ({ ...p, [key]: !p[key] }))
+            }
+            className="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-600"
+            disabled={status === 'submitting'}
+          >
+            ❌ Reject
+          </button>
         </div>
 
-        {/* Reject Options Panel */}
         {showRejectOptions[key] && (
-          <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#fff3cd', borderRadius: '6px', border: '1px solid #ffeaa7' }}>
-            <h4 style={{ margin: '0 0 0.5rem 0', color: '#856404' }}>Why reject this suggestion?</h4>
-            {standardComments.map((c, i) => (
-              <label key={i} style={{ display: 'block', marginBottom: '0.3rem', cursor: 'pointer' }}>
+          <div className="mt-4 bg-yellow-50 border border-yellow-300 rounded-xl p-4">
+            <h4 className="text-lg font-semibold mb-3 text-yellow-700">🤔 Why reject?</h4>
+            {standardComments.map((c, idx) => (
+              <label key={idx} className="block text-sm mb-1 text-gray-700">
                 <input
                   type="checkbox"
                   checked={(selectedStandardComments[key] || []).includes(c)}
-                  onChange={() => toggleCheckbox(i, key)}
-                  style={{ marginRight: '0.5rem' }}
+                  onChange={() => toggleCheckbox(idx, key)}
+                  className="mr-2"
                 />
                 {c}
               </label>
             ))}
             <textarea
-              placeholder="Additional reason (optional)..."
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              style={styles.textarea}
+              className="w-full border rounded-md p-2 mt-2 text-sm text-gray-800"
+              placeholder="Additional reason..."
             />
-            <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem' }}>
-              <button
-                onClick={() => handleFeedback(s, 'rejected')}
-                style={{...styles.button, backgroundColor: '#f44336'}}
-                disabled={status === 'submitting'}
-              >
-                Submit Rejection
-              </button>
-              <button
-                onClick={() => setShowRejectOptions(prev => ({ ...prev, [key]: false }))}
-                style={{...styles.button, backgroundColor: '#6c757d'}}
-              >
-                Cancel
-              </button>
-            </div>
+            <button
+              onClick={() => handleFeedback(s, 'rejected', false, i)}
+              className="bg-red-500 text-white px-3 py-2 rounded-lg mt-3 hover:bg-red-600"
+              disabled={status === 'submitting'}
+            >
+              📝 Submit Rejection
+            </button>
           </div>
         )}
 
-        {/* Status Messages */}
-        {status === 'accepted' && <p style={{ color: 'green', marginTop: '0.5rem', fontWeight: 'bold' }}>✅ Feedback accepted</p>}
-        {status === 'rejected' && !showRejectOptions[key] && <p style={{ color: 'red', marginTop: '0.5rem', fontWeight: 'bold' }}>❌ Feedback rejected</p>}
-        {status === 'error' && <p style={{ color: 'red', marginTop: '0.5rem' }}>⚠️ Error submitting feedback</p>}
-        {status === 'submitting' && <p style={{ color: 'orange', marginTop: '0.5rem' }}>⏳ Submitting...</p>}
+        {status === 'accepted' && <p className="text-green-700 mt-2">✅ Accepted successfully!</p>}
+        {status === 'rejected' && <p className="text-red-700 mt-2">❌ Rejected and recorded</p>}
+        {status === 'error' && <p className="text-yellow-700 mt-2">⚠️ Error submitting feedback</p>}
       </div>
     );
   };
 
   return (
-    <div style={{ marginTop: '1rem', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
-      {/* File Header (Collapsible) */}
-      {normalizedResult.filename && (
+    <div className="mt-8">
+      {/* === Gemini Review Summary === */}
+      {geminiReview && (
         <div
-          onClick={() => setCollapsed(!collapsed)}
+          className="shadow-lg border rounded-2xl p-6 mb-8 backdrop-blur-md"
           style={{
-            background: '#f8f9fa',
-            padding: '0.75rem 1rem',
-            cursor: 'pointer',
-            fontWeight: 'bold',
-            borderBottom: collapsed ? 'none' : '1px solid #ddd',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            userSelect: 'none'
+            background: 'linear-gradient(135deg, rgba(255,255,255,0.85), rgba(230,230,255,0.6))',
+            border: '1px solid rgba(150,100,255,0.2)',
           }}
         >
-          <span>📄 {normalizedResult.filename}</span>
-          <span style={{ fontSize: '0.8rem', color: '#666' }}>
-            {collapsed ? '▶️ Click to expand' : '▼️ Click to collapse'}
-          </span>
+          <h2 className="text-2xl font-bold text-purple-700 mb-3">✨ Gemini Review Summary</h2>
+          <p className="text-gray-800 leading-relaxed whitespace-pre-line">{geminiReview}</p>
         </div>
       )}
 
-      {/* Main Content */}
-      {!collapsed && (
-        <div style={{ padding: '1.5rem' }}>
-          {/* FORCE DEBUG: Always show data summary */}
-          <div style={{ marginBottom: '1rem', padding: '0.5rem', backgroundColor: '#fff3cd', border: '1px solid #ffeaa7', borderRadius: '4px', fontSize: '0.85rem' }}>
-            <strong>🔍 Data Summary:</strong> {normalizedResult.filename} | 
-            Code: {code?.length || 0} chars | 
-            Static: {staticSuggestions.length} | 
-            Gemini Review: {normalizedResult.geminiReview?.rawReview ? `${normalizedResult.geminiReview.rawReview.length} chars` : 'EMPTY'} | 
-            Gemini Suggestions: {geminiSuggestions.length}
+      {/* === GEMINI SUGGESTIONS === */}
+      {geminiSuggestions.length > 0 && (
+        <div
+          className="p-6 rounded-2xl mb-8"
+          style={{
+            background: 'linear-gradient(135deg, #eef5ff, #f6f9ff)',
+            border: '1px solid rgba(100,150,255,0.2)',
+          }}
+        >
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-2xl font-bold text-blue-700 flex items-center gap-2">
+              🤖 Gemini Suggestions
+            </h3>
+            <button
+              onClick={() => handleAcceptAll(geminiSuggestions, 'Gemini')}
+              className="bg-blue-600 text-green px-4 py-2 rounded-lg hover:bg-blue-700"
+            >
+              ✅ Accept All
+            </button>
           </div>
-          {/* Static Analysis Section - FIXED: Always show to debug */}
-          <div style={{ marginBottom: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ color: '#333', margin: 0 }}>
-                ⚡ Static Analysis ({staticSuggestions.length})
-              </h3>
-              {code && staticSuggestions.some(s => s.replacement?.to) && (
-                <button
-                  onClick={handleAcceptAll}
-                  style={{
-                    ...styles.button,
-                    backgroundColor: '#28a745',
-                    fontSize: '0.9rem'
-                  }}
-                >
-                  ✅ Accept All Fixable
-                </button>
-              )}
-            </div>
-            {staticSuggestions.length > 0 ? (
-              staticSuggestions.map((s, i) => renderSuggestionCard(s, i, false))
-            ) : (
-              <div style={{ padding: '1rem', backgroundColor: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '6px' }}>
-                <p style={{ color: '#666', fontStyle: 'italic', margin: 0 }}>
-                  No static analysis issues found.
-                </p>
-                <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#999' }}>
-                  Debug: allSuggestions.length = {allSuggestions.length}, 
-                  staticSuggestions.length = {staticSuggestions.length}
-                </div>
-              </div>
-            )}
+          {geminiSuggestions.map(renderSuggestionCard)}
+        </div>
+      )}
+
+      {/* === STATIC SUGGESTIONS === */}
+      {staticSuggestions.length > 0 && (
+        <div
+          className="p-6 rounded-2xl"
+          style={{
+            background: 'linear-gradient(135deg, #fff9e6, #fffef3)',
+            border: '1px solid rgba(255,210,100,0.2)',
+          }}
+        >
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-2xl font-bold text-yellow-700 flex items-center gap-2">
+              ⚡ Static Suggestions
+            </h3>
+            <button
+              onClick={() => handleAcceptAll(staticSuggestions, 'Static')}
+              className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600"
+            >
+              ✅ Accept All
+            </button>
           </div>
-
-          {/* AI Review Section - FIXED: Always show if geminiReview exists */}
-          {normalizedResult.geminiReview && (
-            <div>
-              <h3 style={{ color: '#4285f4', marginBottom: '1rem' }}>
-                🤖 AI Code Review (Gemini)
-              </h3>
-              
-              {/* AI Summary - FIXED: Always show, even if generic */}
-              <div style={styles.aiSummaryBox}>
-                <strong>AI Summary:</strong>
-                {normalizedResult.geminiReview.rawReview && normalizedResult.geminiReview.rawReview.trim() ? (
-                  <p style={{ whiteSpace: 'pre-wrap', marginTop: '0.5rem', lineHeight: '1.5' }}>
-                    {normalizedResult.geminiReview.rawReview}
-                  </p>
-                ) : (
-                  <p style={{ color: '#666', fontStyle: 'italic', marginTop: '0.5rem' }}>
-                    AI analysis completed. Check specific suggestions below.
-                  </p>
-                )}
-              </div>
-
-              {/* AI Suggestions - FIXED: Show even if empty to debug */}
-              <div style={{ marginTop: '1rem' }}>
-                <h4 style={{ color: '#4285f4', marginBottom: '1rem' }}>AI Suggestions ({geminiSuggestions.length})</h4>
-                {geminiSuggestions.length > 0 ? (
-                  geminiSuggestions.map((s, i) => renderSuggestionCard(s, i, true))
-                ) : (
-                  <div style={{ padding: '1rem', backgroundColor: '#f8f9ff', border: '1px solid #d4e3fc', borderRadius: '6px' }}>
-                    <p style={{ color: '#666', fontStyle: 'italic', margin: 0 }}>
-                      No specific AI suggestions generated. The code may be well-structured.
-                    </p>
-                    <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#999' }}>
-                      Debug: geminiSuggestions.length = {geminiSuggestions.length}, 
-                      geminiFromReview.length = {geminiFromReview.length}, 
-                      geminiFromMain.length = {geminiFromMain.length}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* No Results Fallback - FIXED: Better condition checking */}
-          {(() => {
-            const hasStaticSuggestions = staticSuggestions.length > 0;
-            const hasGeminiReview = normalizedResult.geminiReview?.rawReview && normalizedResult.geminiReview.rawReview.trim() !== '';
-            const hasGeminiSuggestions = geminiSuggestions.length > 0;
-            const shouldShowFallback = !hasStaticSuggestions && !hasGeminiReview && !hasGeminiSuggestions;
-            
-            console.log('=== FALLBACK CONDITION CHECK ===', {
-              hasStaticSuggestions,
-              hasGeminiReview,
-              hasGeminiSuggestions,
-              shouldShowFallback,
-              rawReviewValue: normalizedResult.geminiReview?.rawReview
-            });
-            
-            return shouldShowFallback ? (
-              <div style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>
-                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎉</div>
-                <h3 style={{ color: '#28a745', marginBottom: '0.5rem' }}>Code looks great!</h3>
-                <p>No issues or improvements found by our analysis tools.</p>
-                <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#999' }}>
-                  Debug: staticSuggestions={staticSuggestions.length}, 
-                  rawReview='{normalizedResult.geminiReview?.rawReview?.substring(0, 50)}...', 
-                  geminiSuggestions={geminiSuggestions.length}
-                </div>
-              </div>
-            ) : null;
-          })()}
+          {staticSuggestions.map(renderSuggestionCard)}
         </div>
       )}
     </div>
   );
-};
-
-// Styles
-const styles = {
-  codeBlock: {
-    background: '#f8f9fa',
-    padding: '0.75rem',
-    borderRadius: '6px',
-    fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-    fontSize: '0.85rem',
-    overflowX: 'auto',
-    margin: '0.5rem 0',
-    border: '1px solid #e9ecef',
-    lineHeight: '1.4'
-  },
-  textarea: {
-    width: '100%',
-    minHeight: '80px',
-    marginTop: '0.5rem',
-    padding: '0.75rem',
-    borderRadius: '6px',
-    border: '1px solid #ced4da',
-    fontSize: '0.9rem',
-    resize: 'vertical',
-    fontFamily: 'inherit'
-  },
-  button: {
-    color: '#fff',
-    border: 'none',
-    borderRadius: '6px',
-    padding: '0.5rem 1rem',
-    cursor: 'pointer',
-    fontWeight: '500',
-    fontSize: '0.9rem',
-    transition: 'opacity 0.2s'
-  },
-  aiSummaryBox: {
-    backgroundColor: '#f8f9ff',
-    padding: '1.25rem',
-    border: '1px solid #d4e3fc',
-    borderRadius: '8px',
-    fontSize: '0.95rem',
-    lineHeight: '1.5',
-    color: '#333'
-  }
 };
 
 export default ResultPanel;

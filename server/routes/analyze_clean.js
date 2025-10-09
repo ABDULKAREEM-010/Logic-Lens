@@ -15,32 +15,6 @@ const analyzeCpp = require("../utils/analyzeCpp");
 const { createClient } = require("@supabase/supabase-js");
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
-// Simple request queue to prevent server overload
-let isProcessingMultiFile = false;
-const multiFileQueue = [];
-
-const processQueue = async () => {
-  if (isProcessingMultiFile || multiFileQueue.length === 0) return;
-  
-  isProcessingMultiFile = true;
-  const { req, res, handler } = multiFileQueue.shift();
-  
-  console.log(`🔄 Processing queued request (${multiFileQueue.length} remaining in queue)`);
-  
-  try {
-    await handler(req, res);
-  } catch (error) {
-    console.error('❌ Queue processing error:', error);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Queue processing failed', details: error.message });
-    }
-  } finally {
-    isProcessingMultiFile = false;
-    // Process next item in queue
-    setTimeout(processQueue, 100);
-  }
-};
-
 // Temp folder for uploaded files
 const TEMP_DIR = path.join(__dirname, "../temp");
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
@@ -272,20 +246,8 @@ router.post("/", async (req, res) => {
 });
 
 // --------------------- MULTI-FILE ANALYSIS ---------------------
-router.post("/multi", upload.array("files"), (req, res) => {
+router.post("/multi", upload.array("files"), async (req, res) => {
   console.log('=== MULTI-FILE REQUEST RECEIVED ===', { fileCount: req.files?.length });
-  
-  // Add to queue to prevent concurrent processing
-  multiFileQueue.push({
-    req,
-    res, 
-    handler: handleMultiFileAnalysis
-  });
-  
-  processQueue();
-});
-
-async function handleMultiFileAnalysis(req, res) {
   
   if (!req.files || !req.files.length) {
     console.error('=== NO FILES IN REQUEST ===');
@@ -375,10 +337,8 @@ async function handleMultiFileAnalysis(req, res) {
     
   } catch (error) {
     console.error('=== MULTI-FILE ANALYSIS ERROR ===', error);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Multi-file analysis failed', details: error.message });
-    }
+    res.status(500).json({ error: 'Multi-file analysis failed', details: error.message });
   }
-}
+});
 
 module.exports = router;

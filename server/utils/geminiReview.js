@@ -1,152 +1,368 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+require("dotenv").config();
 
-// Ensure dotenv is loaded
-require('dotenv').config();
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Initialize with API key (ensure .env has GEMINI_API_KEY)
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+// 🚨 Never hide critical suggestions
+const CRITICAL_TYPES = ["syntax", "logical", "semantic"];
 
-async function reviewWithGemini(code, language, rejectionComments = []) {
-  if (!process.env.GEMINI_API_KEY) {
-    console.error('=== GEMINI ERROR: Missing GEMINI_API_KEY in .env ===');
-    return fallbackResponse('Missing API key. Please set GEMINI_API_KEY in .env.');
+/* -----------------------------------------------
+   Utility: Retry with exponential backoff
+----------------------------------------------- */
+async function withRetries(fn, retries = 3, delay = 2000) {
+  let lastError;
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      console.warn(`⚠️ Attempt ${i + 1} failed: ${err.message}`);
+      if (i < retries - 1) {
+        await new Promise((r) => setTimeout(r, delay));
+        delay *= 2;
+      }
+    }
+  }
+  throw lastError;
+}
+
+/* -----------------------------------------------
+   Force Gemini to return JSON consistently
+----------------------------------------------- */
+async function enforceJSON(model, prompt) {
+  const result = await model.generateContent({
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: { responseMimeType: "application/json" },
+  });
+
+  let raw = "";
+  try {
+    if (typeof result.response.text === "function") {
+      raw = result.response.text().trim();
+    } else {
+      raw =
+        result?.response?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
+        "";
+    }
+  } catch (e) {
+    console.error("Extraction error:", e.message);
   }
 
-  try {
-    console.log('=== GEMINI PROMPT PREP ===', { 
-      language, 
-      codeLength: code.length, 
-      rejectionCount: rejectionComments.length,
-      apiKeySet: !!process.env.GEMINI_API_KEY 
-    });
+  // Retry if response isn’t valid JSON
+  if (!raw.startsWith("{")) {
+    console.warn("⚠️ Gemini returned non-JSON, retrying...");
+    const retryPrompt = `
+STRICT MODE: Output ONLY valid JSON — no markdown, no commentary.
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });  // Stable model (avoids 404)
-
-    // Shorter, focused prompt (emphasize NO markdown)
-    const prompt = `You are a code reviewer. Review this ${language} code for issues, improvements, and best practices. Past rejections: ${rejectionComments.join('\n') || 'None'}.
-
-Code:
-\`\`\`${language}
-${code.substring(0, 2000)}  // Limit to avoid token limits
-\`\`\`
-
-Output ONLY valid JSON with NO markdown, code blocks, or extra text. Just the JSON object:
+Schema:
 {
-  "review": "2-3 sentence summary of code quality and key suggestions.",
+  "review": "string summary",
   "suggestions": [
-    {
-      "line": 1,
-      "message": "Brief issue description.",
-      "replacement": "Suggested code snippet or fix."
+    { 
+      "line": number, 
+      "type": "logical|syntax|semantic|security|performance|best-practice|style", 
+      "message": "string", 
+      "replacement": { "from": "string", "to": "string" }
     }
   ]
 }
 
-Limit to 3-5 suggestions. NO backticks, NO "json" label.`;
+Now convert this to valid JSON:
+${raw}
+`;
+    return enforceJSON(model, retryPrompt);
+  }
 
-    const result = await model.generateContent(prompt);
-    let rawOutput = result.response.text().trim();
-    console.log('=== GEMINI RAW OUTPUT (first 400 chars) ===', rawOutput.substring(0, 400) + (rawOutput.length > 400 ? '...' : ''));
+  return raw;
+}
 
-    if (!rawOutput) {
-      throw new Error('Empty response from Gemini');
+/* -----------------------------------------------
+   Extract rejected lines from comments
+----------------------------------------------- */
+function extractRejectedLines(rejectedMessages) {
+  const linePattern = /line\s*(\d+)/i;
+  const rejectedLines = [];
+
+  rejectedMessages.forEach((msg) => {
+    const match = msg.match(linePattern);
+    if (match) rejectedLines.push(Number(match[1]));
+  });
+
+  return [...new Set(rejectedLines)]; // unique
+}
+
+/* -----------------------------------------------
+   MAIN Gemini Review Function (Enhanced)
+----------------------------------------------- */
+async function reviewWithGemini(
+  code,
+  language = "python",
+  rejectedMessages = [],
+  staticSuggestions = [],
+  isMultiFile = false,
+  projectContext = null
+) {
+  if (!process.env.GEMINI_API_KEY) {
+    console.error("❌ Missing GEMINI_API_KEY in .env file");
+    return fallbackResponse("Missing Gemini API key");
+  }
+
+  const models = ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.0-pro"];
+  const rejectedLines = extractRejectedLines(rejectedMessages);
+
+  // Add rejection info to the prompt
+  const rejectionNotes =
+    rejectedMessages.length > 0
+      ? `Dont repeat these rejected suggestions for non-critical issues:\n${rejectedMessages
+          .map((r, i) => `${i + 1}. "${r}"`)
+          .join("\n")}\n\nDont give style or best-practice suggestions on the lines: [${rejectedLines.join(
+          ", "
+        )}]\n\n`
+      : "";
+
+  // Create context-aware prompt
+  let prompt;
+  
+  if (isMultiFile && projectContext) {
+    console.log(`🔄 Using MULTI-FILE prompt for ${projectContext.currentFile} (${language})`);
+    // Multi-file project analysis prompt
+    prompt = `
+${rejectionNotes}
+You are analyzing a ${language} project with multiple files. Consider code patterns, architecture, and cross-file relationships.
+
+PROJECT CONTEXT:
+- Total files: ${projectContext.fileCount}
+- File types: ${projectContext.languages.join(', ')}
+- Current file: ${projectContext.currentFile}
+
+OTHER FILES IN PROJECT:
+${projectContext.otherFiles.map(f => `- ${f.name}: ${f.summary}`).join('\n')}
+
+Focus on:
+1. **Architecture patterns** and consistency across files
+2. **Cross-file dependencies** and potential coupling issues  
+3. **Security vulnerabilities** that span multiple files
+4. **Performance bottlenecks** in the overall system
+5. **Code duplication** and opportunities for refactoring
+6. **Missing error handling** or validation patterns
+
+Respond ONLY with valid JSON (no markdown, backticks, or text).
+
+{
+  "review": "project-level analysis focusing on architecture, patterns, and cross-file issues",
+  "suggestions": [
+    {
+      "line": 10,
+      "type": "architecture|security|performance|duplication|coupling|pattern|validation",
+      "message": "clear explanation with project context",
+      "replacement": { "from": "snippet", "to": "improved snippet" }
     }
+  ]
+}
 
-    // Step 1: Strip common markdown wrappers (````json, ```, etc.)
-    rawOutput = rawOutput
-      .replace(/^```json\s*/i, '')  // Remove leading ```json
-      .replace(/```\s*$/i, '')      // Remove trailing ```
-      .replace(/^```\s*/i, '')      // Remove any plain ```
-      .replace(/```\s*$/i, '')      // Remove any plain ```
-      .trim();
+CURRENT FILE (${projectContext.currentFile}):
+\`\`\`${language}
+${code.substring(0, 2000)}
+\`\`\`
+`;
+  } else {
+    console.log(`🔄 Using SINGLE-FILE prompt for ${language}`);
+    // Single file analysis prompt  
+    prompt = `
+${rejectionNotes}
+You are a code reviewer. Analyze this ${language} code.
 
-    console.log('=== GEMINI CLEANED OUTPUT (first 400 chars) ===', rawOutput.substring(0, 400) + (rawOutput.length > 400 ? '...' : ''));
+Respond ONLY with valid JSON (no markdown, backticks, or text).
 
-    // Step 2: Robust JSON parsing
-    let parsed;
-    try {
-      // Direct parse on cleaned output
-      parsed = JSON.parse(rawOutput);
-      console.log('=== GEMINI PARSE SUCCESS (direct) ===');
-    } catch (parseErr1) {
-      console.log('=== GEMINI PARSE ATTEMPT 1 FAILED ===', parseErr1.message);
-      // Step 3: Extract JSON block with better regex (handles nested content)
-      const jsonMatch = rawOutput.match(/\{[^{}]*("review"[^}]*"suggestions"[^}]*\$[^\$]*\$[^{}]*)\}/);
-      if (jsonMatch) {
-        try {
-          parsed = JSON.parse('{' + jsonMatch[1] + '}');
-          console.log('=== GEMINI PARSE SUCCESS (extracted) ===');
-        } catch (parseErr2) {
-          console.log('=== GEMINI PARSE ATTEMPT 2 FAILED ===', parseErr2.message);
-          // Step 4: Semi-parse - Extract review text directly as fallback
-          const reviewMatch = rawOutput.match(/"review"\s*:\s*"([^"]*(?:"[^"]*)*[^"]*)"/);
-          const suggestionsMatch = rawOutput.match(/"suggestions"\s*:\s*\$([^\$]*)\$/);
-          if (reviewMatch) {
-            console.log('=== GEMINI SEMI-PARSE SUCCESS (text extraction) ===');
-            const rawReview = reviewMatch[1].replace(/\\"/g, '"');  // Unescape quotes
-            const suggestions = suggestionsMatch ? JSON.parse('[' + suggestionsMatch[1] + ']') : [];
-            return {
-              rawReview: `AI Summary: ${rawReview.substring(0, 200)}... (Full parsing failed; manual review recommended.)`,
-              suggestions: Array.isArray(suggestions) ? suggestions.map(s => ({
-                line: s.line || 'N/A',
-                message: s.message || 'General suggestion.',
-                replacement: s.replacement || null,
-                source: 'gemini'
-              })) : []
-            };
-          }
-          throw new Error(`All parsing failed: ${parseErr2.message}`);
-        }
-      } else {
-        throw new Error(`No JSON structure found in: ${rawOutput.substring(0, 100)}`);
+{
+  "review": "summary of code quality",
+  "suggestions": [
+    {
+      "line": 10,
+      "type": "logical|syntax|semantic|security|performance|best-practice|style",
+      "message": "clear explanation",
+      "replacement": { "from": "snippet", "to": "snippet" }
+    }
+  ]
+}
+
+Code:
+\`\`\`${language}
+${code.substring(0, 2000)}
+\`\`\`
+`;
+  }
+
+  try {
+    let result;
+    let chosenModel = null;
+
+    // Try multiple Gemini models
+    for (const modelName of models) {
+      console.log(`🔄 Trying Gemini model: ${modelName}`);
+      const model = genAI.getGenerativeModel({ model: modelName });
+
+      try {
+        result = await withRetries(() => enforceJSON(model, prompt));
+        chosenModel = modelName;
+        break;
+      } catch (err) {
+        console.warn(`⚠️ ${modelName} failed: ${err.message}`);
       }
     }
 
-    const rawReview = parsed.review || 'No detailed summary available from AI review.';
-    const suggestions = Array.isArray(parsed.suggestions) ? parsed.suggestions.map(s => ({
-      line: s.line || 'N/A',
-      message: s.message || 'General improvement suggested.',
-      replacement: s.replacement || null,
-      source: 'gemini'  // Ensure for frontend
-    })) : [];
+    if (!result) throw new Error("All Gemini models failed");
+    console.log(`✅ Gemini succeeded with ${chosenModel}`);
 
-    console.log('=== GEMINI PARSED RESULT ===', { 
-      rawReviewPreview: rawReview.substring(0, 100) + '...',
-      suggestionsCount: suggestions.length,
-      firstSuggestion: suggestions[0]?.message 
+    const cleaned = result
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/```$/i, "")
+      .trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (e) {
+      console.error("Gemini JSON parse error:", e.message);
+      return fallbackResponse("AI returned unparsable response");
+    }
+
+    // Filter out rejected lines for non-critical issues
+    const filteredSuggestions = (parsed.suggestions || []).filter((s) => {
+      if (
+        rejectedLines.includes(Number(s.line)) &&
+        ["style", "best-practice", "maintainability"].includes(
+          (s.type || "").toLowerCase()
+        )
+      ) {
+        console.log(
+          `🛑 Skipping suggestion at line ${s.line} (previously rejected non-critical)`
+        );
+        return false;
+      }
+      return true;
     });
 
-    return {
-      rawReview,
-      suggestions
-    };
+    // Merge static and Gemini suggestions (keep order)
+    const orderedSuggestions = [
+      ...staticSuggestions.map((s) => ({ ...s, source: "static" })),
+      ...filteredSuggestions.map((s) => ({
+        line: s.line ?? null,
+        type: s.type || "unspecified",
+        message: s.message || "",
+        replacement: s.replacement || null,
+        source: "gemini",
+      })),
+    ];
 
+    console.log(`✅ ${orderedSuggestions.length} total suggestions ready`);
+    return {
+      rawReview: parsed.review || "No detailed summary available.",
+      suggestions: orderedSuggestions,
+    };
   } catch (err) {
-    console.error('=== GEMINI API ERROR ===', err.message);
-    return fallbackResponse(`Parsing failed: ${err.message.substring(0, 50)}`);
+    console.error("💥 Gemini review failed:", err.message);
+    return fallbackResponse(`Error: ${err.message}`);
   }
 }
 
-// Enhanced fallback (short review for frontend preview)
+/* -----------------------------------------------
+   Fallback Response (when Gemini fails)
+----------------------------------------------- */
 function fallbackResponse(errorMsg) {
-  console.log('=== USING FALLBACK DUE TO ERROR ===', errorMsg.substring(0, 100));
+  console.warn("⚠️ Using fallback response due to error:", errorMsg);
   return {
-    rawReview: `AI Review Unavailable: ${errorMsg}. Code appears syntactically correct—review manually for best practices.`,  // Short (~80 chars)
+    rawReview: `AI Review unavailable (${errorMsg}).`,
     suggestions: [
       {
-        line: 'N/A',
-        message: 'Add comments for better readability.',
-        replacement: '// Example: Add comment here',
-        source: 'gemini'
+        line: "N/A",
+        message: "Consider adding error handling and comments.",
+        replacement: null,
+        source: "fallback",
       },
       {
-        line: 'N/A',
-        message: 'Consider error handling for robustness.',
+        line: "N/A",
+        message: "Run a linter or formatter for consistent style.",
         replacement: null,
-        source: 'gemini'
-      }
-    ]
+        source: "fallback",
+      },
+    ],
   };
 }
 
-module.exports = { reviewWithGemini };
+/* -----------------------------------------------
+   Multi-File Project Analysis
+----------------------------------------------- */
+async function reviewMultiFileProject(files) {
+  console.log(`🔄 Starting multi-file project analysis for ${files.length} files`);
+  
+  // Build project context
+  const languages = [...new Set(files.map(f => f.language))];
+  const projectContext = {
+    fileCount: files.length,
+    languages,
+    totalLines: files.reduce((sum, f) => sum + (f.code.split('\n').length || 0), 0)
+  };
+
+  const results = [];
+  
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    console.log(`🔍 Analyzing file ${i + 1}/${files.length}: ${file.filename}`);
+    
+    // Create enhanced context for this file
+    const fileContext = {
+      ...projectContext,
+      currentFile: file.filename,
+      otherFiles: files
+        .filter(f => f.filename !== file.filename)
+        .map(f => ({
+          name: f.filename,
+          summary: `${f.language} file (${f.code.split('\n').length} lines)`
+        }))
+        .slice(0, 5) // Limit to prevent token overflow
+    };
+
+    try {
+      // Use enhanced multi-file prompt
+      const geminiResult = await reviewWithGemini(
+        file.code,
+        file.language,
+        [], // rejectedMessages
+        [], // staticSuggestions  
+        true, // isMultiFile
+        fileContext // projectContext
+      );
+
+      // Convert to the expected structure (matching processSingleFileAnalysis)
+      const analysis = {
+        suggestions: geminiResult.suggestions || [], // All suggestions 
+        geminiReview: geminiResult // Separate Gemini review structure
+      };
+
+      results.push({
+        file: file.filename,
+        code: file.code,
+        analysis: analysis
+      });
+
+      console.log(`✅ Completed analysis for ${file.filename}: ${analysis.suggestions?.length || 0} suggestions`);
+      console.log(`✅ Gemini review available: ${geminiResult.rawReview ? 'YES' : 'NO'}`);
+    } catch (error) {
+      console.error(`❌ Failed to analyze ${file.filename}:`, error.message);
+      results.push({
+        file: file.filename,
+        code: file.code,
+        analysis: { 
+          suggestions: [], 
+          geminiReview: { rawReview: `Analysis failed: ${error.message}`, suggestions: [] }
+        }
+      });
+    }
+  }
+
+  return results;
+}
+
+module.exports = { reviewWithGemini, reviewMultiFileProject };

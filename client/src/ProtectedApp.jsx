@@ -1,467 +1,185 @@
-// // src/ProtectedApp.jsx
-// import React, { useState, useEffect } from 'react';
-// import { supabase } from './supabaseClient';
-// import CodeEditor from './components/CodeEditor';
-// import ResultPanel from './components/ResultPanel';
-// import ErrorStatsDashboard from './components/ErrorStatsDashboard';
-// import { useNavigate } from 'react-router-dom';
-// import AdminDashboard from './components/AdminDashboard';
-
-// const ProtectedApp = () => {
-//   const [code, setCode] = useState('');
-//   const [multipleFiles, setMultipleFiles] = useState([]);
-//   const [language, setLanguage] = useState('python');
-//   const [result, setResult] = useState(null);
-//   const [loading, setLoading] = useState(false);
-//   const [isAdmin, setIsAdmin] = useState(false);
-//   const [showDashboard, setShowDashboard] = useState(false);
-//   const [user, setUser] = useState(null);
-//   const navigate = useNavigate();
-
-//   // Load code from localStorage (GitHub)
-//   useEffect(() => {
-//     const githubCode = localStorage.getItem('github_selected_code');
-//     if (githubCode) setCode(githubCode);
-//   }, []);
-
-//   useEffect(() => {
-//     const fetchUser = async () => {
-//       const { data: { user } } = await supabase.auth.getUser();
-//       if (!user) {
-//         navigate('/login');
-//         return;
-//       }
-//       setUser(user);
-//       setIsAdmin(user.user_metadata?.isAdmin === true);
-//     };
-//     fetchUser();
-//   }, [navigate]);
-
-//   const handleLogout = async () => {
-//     await supabase.auth.signOut();
-//     setUser(null);
-//     navigate('/login');
-//   };
-
-//   const handleGithubIntegration = () => {
-//     const clientId = 'Ov23lik9tQOuJI8KleP9';
-//     const redirectUri = 'http://localhost:5173/github-callback';
-//     const scope = 'repo user';
-//     const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
-//     window.location.href = githubAuthUrl;
-//   };
-
-//   // Read folder recursively
-//   const readFilesRecursively = async (dirHandle, path = '') => {
-//     const files = [];
-//     for await (const handle of dirHandle.values()) {
-//       const name = handle.name;
-//       if (handle.kind === 'file') {
-//         const file = await handle.getFile();
-//         const text = await file.text();
-//         files.push({ filename: path + name, code: text });
-//       } else if (handle.kind === 'directory') {
-//         const nestedFiles = await readFilesRecursively(handle, path + name + '/');
-//         files.push(...nestedFiles);
-//       }
-//     }
-//     return files;
-//   };
-
-//   const handleSelectFolder = async () => {
-//     try {
-//       const dirHandle = await window.showDirectoryPicker();
-//       const files = await readFilesRecursively(dirHandle);
-//       console.log('Files found in folder:', files);
-//       setMultipleFiles(files);
-//       setResult(null); // clear previous results
-//     } catch (err) {
-//       console.error('Folder selection cancelled or failed:', err);
-//     }
-//   };
-
-//   const handleAnalyze = async () => {
-//     setLoading(true);
-//     setResult(null);
-
-//     try {
-//       const sessionData = await supabase.auth.getSession();
-//       const token = sessionData.data.session?.access_token;
-//       const userId = sessionData.data.session?.user?.id;
-
-//       // Single code analyze
-//       if (multipleFiles.length === 0) {
-//         const res = await fetch('http://localhost:5000/api/analyze', {
-//           method: 'POST',
-//           headers: {
-//             'Content-Type': 'application/json',
-//             Authorization: `Bearer ${token}`
-//           },
-//           body: JSON.stringify({ code, language, userId })
-//         });
-//         const data = await res.json();
-//         setResult(data);
-//       } else {
-//         // Analyze multiple files
-//         const analysisResults = [];
-//         for (const file of multipleFiles) {
-//           const res = await fetch('http://localhost:5000/api/analyze', {
-//             method: 'POST',
-//             headers: {
-//               'Content-Type': 'application/json',
-//               Authorization: `Bearer ${token}`
-//             },
-//             body: JSON.stringify({ code: file.code, language, userId, filename: file.filename })
-//           });
-//           const data = await res.json();
-//           analysisResults.push({ filename: file.filename, result: data });
-//         }
-//         setResult({ multipleFiles: analysisResults });
-//       }
-//     } catch (error) {
-//       console.error('Error:', error);
-//       setResult({ error: 'Server error' });
-//     }
-
-//     setLoading(false);
-//   };
-
-//   return (
-//     <div style={styles.page}>
-//       <h1 style={styles.heading}>🔍 Code Review Bot</h1>
-//       <div style={styles.userRow}>
-//         <span>👋 {user?.email}</span>
-//         <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
-//         <button onClick={handleGithubIntegration} style={styles.githubBtn}>GitHub</button>
-//       </div>
-
-//       {isAdmin && <AdminDashboard />}
-
-//       <div style={styles.controls}>
-//         <select value={language} onChange={e => setLanguage(e.target.value)} style={styles.select}>
-//           <option value="python">Python</option>
-//           <option value="javascript">JavaScript</option>
-//           <option value="java">Java</option>
-//           <option value="cpp">C++</option>
-//           <option value="c">C</option>
-//         </select>
-//         <button style={styles.buttonPrimary} onClick={handleAnalyze}>Analyze</button>
-//         <button style={styles.buttonSecondary} onClick={() => setShowDashboard(!showDashboard)}>
-//           {showDashboard ? 'Hide Dashboard' : '📊 Dashboard'}
-//         </button>
-//         <button style={styles.buttonSecondary} onClick={handleSelectFolder}>📁 Multiple Files</button>
-//       </div>
-
-//       <CodeEditor code={code} setCode={setCode} />
-
-//       {loading && <p style={{ textAlign: 'center' }}>Analyzing...</p>}
-
-//       {result && (
-//         <ResultPanel
-//           result={result}
-//           code={code}
-//           setCode={setCode}
-//           language={language}
-//           multipleFiles={multipleFiles}
-//         />
-//       )}
-
-//       {showDashboard && <ErrorStatsDashboard />}
-//     </div>
-//   );
-// };
-
-// const styles = {
-//   page: { fontFamily: 'Segoe UI, sans-serif', backgroundColor: '#f0f4f8', minHeight: '100vh', padding: '2rem' },
-//   heading: { textAlign: 'center', color: '#333', fontSize: '2rem', marginBottom: '1rem' },
-//   userRow: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1rem', marginBottom: '1rem', paddingRight: '1rem' },
-//   logoutBtn: { backgroundColor: '#e53935', color: 'white', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', cursor: 'pointer', fontWeight: 'bold' },
-//   githubBtn: { backgroundColor: '#24292f', color: 'white', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', cursor: 'pointer', fontWeight: 'bold', marginLeft: '0.5rem' },
-//   controls: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' },
-//   select: { padding: '0.5rem', fontSize: '1rem', borderRadius: '6px', border: '1px solid #ccc', backgroundColor: '#fff' },
-//   buttonPrimary: { backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '6px', padding: '0.6rem 1.2rem', cursor: 'pointer', fontWeight: 'bold' },
-//   buttonSecondary: { backgroundColor: '#2196F3', color: 'white', border: 'none', borderRadius: '6px', padding: '0.6rem 1.2rem', cursor: 'pointer', fontWeight: 'bold' },
-// };
-
-// export default ProtectedApp;
-// src/ProtectedApp.jsx
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient';
-import CodeEditor from './components/CodeEditor';
-import ResultPanel from './components/ResultPanel';
-import ErrorStatsDashboard from './components/ErrorStatsDashboard';
-import { useNavigate } from 'react-router-dom';
+import { supabase, supabaseUrl, supabaseKey } from './supabaseClient';
+import { useNavigate, useLocation } from 'react-router-dom';
+import Home from './pages/Home';
 import AdminDashboard from './components/AdminDashboard';
+import UserDashboard from './components/UserDashboard'; // ✅ your user dashboard
 
-const ProtectedApp = () => {
-  const [code, setCode] = useState('');
-  const [multipleFiles, setMultipleFiles] = useState([]); // { filename, code }
-  const [language, setLanguage] = useState('python');
-  const [result, setResult] = useState(null); // will hold { results: [...] } for multi or analysis for single
-  const [loading, setLoading] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [showDashboard, setShowDashboard] = useState(false);
+const ProtectedApp = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [code, setCode] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Load code from localStorage (GitHub)
-  useEffect(() => {
-    const githubCode = localStorage.getItem('github_selected_code');
-    if (githubCode) setCode(githubCode);
-  }, []);
-
+  // ✅ Fetch logged-in user and profile info
   useEffect(() => {
     const fetchUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
+
       if (!user) {
         navigate('/login');
         return;
       }
+
       setUser(user);
-      setIsAdmin(user.user_metadata?.isAdmin === true);
+
+      const { data: profileData, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id);
+
+      if (error) {
+        console.error('Error fetching profile:', error);
+
+        // Diagnostic: try direct REST fetch to see the HTTP status and response body
+        try {
+          const restUrl = `${window.location.protocol}//${window.location.host.replace(/:\d+$/, '')}${''}`; // placeholder (not used)
+          // Construct Supabase REST URL
+          const profilesUrl = `${supabaseUrl}/rest/v1/profiles?select=*&id=eq.${user.id}`;
+          fetch(profilesUrl, {
+            headers: {
+              apikey: supabaseKey,
+              Authorization: `Bearer ${supabaseKey}`,
+              Accept: 'application/json'
+            }
+          }).then(async res => {
+            const text = await res.text();
+            console.warn('Supabase REST diagnostic status:', res.status, 'body:', text);
+          }).catch(fetchErr => console.warn('Supabase REST diagnostic fetch failed:', fetchErr));
+        } catch (diagErr) {
+          console.warn('Diagnostic fetch failed:', diagErr);
+        }
+      } else if (profileData && profileData.length > 0) {
+        // Profile exists - use the first (and should be only) profile
+        setProfile(profileData[0]);
+      } else {
+        // No profile found - use user data as temporary profile
+        console.log('No profile found for user, using user data as profile...');
+        const tempProfile = {
+          id: user.id,
+          email: user.email || user.user_metadata?.email || 'unknown@example.com',
+          // Add any other user properties you need
+          ...user.user_metadata
+        };
+        setProfile(tempProfile);
+      }
+
+      setLoading(false);
     };
+
     fetchUser();
   }, [navigate]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    navigate('/login');
-  };
+  // ✅ Load saved code on mount
+  useEffect(() => {
+    const savedCode = localStorage.getItem('editor_code');
+    if (savedCode) setCode(savedCode);
+  }, []);
 
-  const handleGithubIntegration = () => {
-    const clientId = 'Ov23lik9tQOuJI8KleP9';
-    const redirectUri = 'http://localhost:5173/github-callback';
-    const scope = 'repo user';
-    const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}`;
-    window.location.href = githubAuthUrl;
-  };
+  // ✅ Save code persistently
+  useEffect(() => {
+    if (code) localStorage.setItem('editor_code', code);
+  }, [code]);
 
-  // Read folder recursively (File System Access API)
-  const readFilesRecursively = async (dirHandle, path = '') => {
-    const files = [];
-    for await (const handle of dirHandle.values()) {
-      const name = handle.name;
-      if (handle.kind === 'file') {
-        const file = await handle.getFile();
-        const text = await file.text();
-        files.push({ filename: path + name, code: text });
-      } else if (handle.kind === 'directory') {
-        const nestedFiles = await readFilesRecursively(handle, path + name + '/');
-        files.push(...nestedFiles);
-      }
-    }
-    return files;
-  };
+  // ✅ Beautiful loading screen
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-card">
+          <div className="loading-content">
+            <div className="loading-spinner"></div>
+            <div className="loading-text">
+              <h3>Initializing Logic Lens</h3>
+              <p>Preparing your AI-powered code analysis environment...</p>
+            </div>
+          </div>
+          <div className="loading-progress">
+            <div className="progress-bar"></div>
+          </div>
+        </div>
 
-  const handleSelectFolder = async () => {
-    try {
-      const dirHandle = await window.showDirectoryPicker();
-      const files = await readFilesRecursively(dirHandle);
-      console.log('Files found in folder:', files);
-      setMultipleFiles(files);
-      setResult(null); // clear previous results
-    } catch (err) {
-      console.error('Folder selection cancelled or failed:', err);
-    }
-  };
-
-  // Utility: convert multipleFiles state into FormData and hit /api/analyze/multi
-  const analyzeMultipleFiles = async (token) => {
-    // Build FormData
-    const formData = new FormData();
-    // append Files (construct File objects from code text so backend multer receives them)
-    multipleFiles.forEach((f, idx) => {
-      const blob = new Blob([f.code], { type: 'text/plain' });
-      // Construct a File with the original filename so multer.originalname is set
-      const clientFile = new File([blob], f.filename);
-      formData.append('files', clientFile);
-    });
-    // include 'paths' metadata so backend can reconstruct relative paths
-    formData.append('paths', JSON.stringify(multipleFiles.map(f => f.filename)));
-
-    // Send to multi endpoint. Do NOT set Content-Type header (browser will set boundary)
-    const res = await fetch('http://localhost:5000/api/analyze/multi', {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      body: formData
-    });
-
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.error || `Multi-file analysis failed: ${res.status}`);
-    }
-    const data = await res.json();
-    return data; // expected shape: { results: [ { file, code, analysis } ] }
-  };
-
-  // Main analyze handler (single-file or multi-file)
-  const handleAnalyze = async () => {
-    setLoading(true);
-    setResult(null);
-
-    try {
-      const sessionData = await supabase.auth.getSession();
-      const token = sessionData.data.session?.access_token;
-      const userId = sessionData.data.session?.user?.id;
-
-      // Single file analyze (existing behavior)
-      if (!multipleFiles || multipleFiles.length === 0) {
-        const res = await fetch('http://localhost:5000/api/analyze', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: token ? `Bearer ${token}` : ''
-          },
-          body: JSON.stringify({ code, language, userId })
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || 'Single-file analysis failed');
-        }
-        const data = await res.json();
-        // setResult as the single-file analysis (keeps compatibility with existing ResultPanel usage)
-        setResult(data);
-      } else {
-        // Multi-file analyze: send all files in one request
-        const multiData = await analyzeMultipleFiles(token);
-        // Save the returned structure (expecting { results: [...] })
-        setResult(multiData);
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      setResult({ error: error.message || 'Server error' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Update code for a specific file in multipleFiles AND in result.results so UI stays in sync
-  const updateFileCode = (idx, newCode) => {
-    setMultipleFiles(prev => {
-      const copy = [...prev];
-      if (!copy[idx]) return prev;
-      copy[idx] = { ...copy[idx], code: newCode };
-      return copy;
-    });
-
-    // Also update result.results if we have multi results
-    setResult(prev => {
-      if (!prev || !prev.results) return prev;
-      const copy = { ...prev };
-      copy.results = copy.results.map((r, i) => i === idx ? { ...r, code: newCode } : r);
-      return copy;
-    });
-  };
-
-  // Helper to detect language by extension (kept simple)
-  const detectLanguage = (filename) => {
-    const ext = filename.split('.').pop().toLowerCase();
-    if (ext === 'py') return 'python';
-    if (ext === 'java') return 'java';
-    if (['c', 'cpp', 'h'].includes(ext)) return ext === 'c' ? 'c' : 'cpp';
-    return 'javascript';
-  };
-
-  return (
-    <div style={styles.page}>
-      <h1 style={styles.heading}>🔍 Code Review Bot</h1>
-      <div style={styles.userRow}>
-        <span>👋 {user?.email}</span>
-        <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
-        <button onClick={handleGithubIntegration} style={styles.githubBtn}>GitHub</button>
+        <style>{`
+          .loading-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+          }
+          .loading-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.9));
+            border-radius: 20px;
+            padding: 3rem;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            backdrop-filter: blur(10px);
+            max-width: 400px;
+            width: 100%;
+          }
+          .loading-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+          }
+          .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(102, 126, 234, 0.2);
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+          }
+          .loading-text h3 {
+            color: #1e293b;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem 0;
+          }
+          .loading-text p {
+            color: #64748b;
+            margin: 0;
+            font-size: 0.95rem;
+            line-height: 1.5;
+          }
+          .loading-progress {
+            width: 100%;
+            height: 4px;
+            background: rgba(102, 126, 234, 0.2);
+            border-radius: 2px;
+            overflow: hidden;
+          }
+          .progress-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 2px;
+            animation: progress 2s ease-in-out infinite;
+          }
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+          @keyframes progress { 0% { transform: translateX(-100%); } 50% { transform: translateX(0%); } 100% { transform: translateX(100%); } }
+        `}</style>
       </div>
+    );
+  }
 
-      {isAdmin && <AdminDashboard />}
+  // ✅ Dashboard route — automatically load correct dashboard
+  if (location.pathname === '/dashboard') {
+    if (profile?.is_admin) return <AdminDashboard />;
+    return <UserDashboard />;
+  }
 
-      <div style={styles.controls}>
-        <select value={language} onChange={e => setLanguage(e.target.value)} style={styles.select}>
-          <option value="python">Python</option>
-          <option value="javascript">JavaScript</option>
-          <option value="java">Java</option>
-          <option value="cpp">C++</option>
-          <option value="c">C</option>
-        </select>
-        <button style={styles.buttonPrimary} onClick={handleAnalyze} disabled={loading}>
-          {loading ? 'Analyzing...' : 'Analyze'}
-        </button>
-        <button style={styles.buttonSecondary} onClick={() => setShowDashboard(!showDashboard)}>
-          {showDashboard ? 'Hide Dashboard' : '📊 Dashboard'}
-        </button>
-        <button style={styles.buttonSecondary} onClick={handleSelectFolder}>
-          📁 Multiple Files
-        </button>
-      </div>
+  // ✅ Default protected routes (like editor)
+  if (children) {
+    return React.cloneElement(children, { code, setCode, user });
+  }
 
-      <CodeEditor code={code} setCode={setCode} />
-
-      {loading && <p style={{ textAlign: 'center' }}>Analyzing...</p>}
-
-      {/* Render results:
-          - Single-file: `result` is the analysis object { suggestions, geminiReview }
-          - Multi-file: `result` is { results: [ { file, code, analysis } ] } */}
-      {result && result.results && Array.isArray(result.results) && (
-        <div style={{ marginTop: '2rem' }}>
-          <h3>Analysis Results ({result.results.length} files)</h3>
-
-          {result.results.map((r, idx) => {
-            // Debug logging if needed
-            console.log(`Rendering result ${idx}`, { file: r.file, codeLength: r.code?.length, analysisKeys: Object.keys(r.analysis || {}) });
-
-            return (
-              <div key={idx} style={{ marginBottom: '2rem', border: '2px solid #2196F3', borderRadius: '8px', padding: '1rem', backgroundColor: '#fafafa' }}>
-                <h4 style={{ color: '#2196F3', marginBottom: '1rem' }}>📄 {r.file}</h4>
-                <div style={{ marginBottom: '1rem', fontSize: '0.9rem', color: '#666', backgroundColor: '#e3f2fd', padding: '0.5rem', borderRadius: '4px' }}>
-                  <strong>File Info:</strong> {r.code?.length || 0} characters
-                  {r.analysis?.suggestions && ` | ${r.analysis.suggestions.length} total suggestions`}
-                  {r.analysis?.geminiReview?.rawReview && ` | AI Review: ${r.analysis.geminiReview.rawReview.length} chars`}
-                </div>
-
-                <div style={{ border: '1px solid #ccc', borderRadius: '4px', padding: '1rem', backgroundColor: 'white' }}>
-                  <ResultPanel
-                    result={r.analysis}
-                    code={r.code}
-                    language={detectLanguage(r.file)}
-                    setCode={(newCode) => updateFileCode(idx, newCode)}
-                    filename={r.file}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Single-file display (if result looks like a single analysis object) */}
-      {result && !result.results && !result.error && (
-        <div style={{ marginTop: '2rem' }}>
-          <h3>Analysis Result</h3>
-          <ResultPanel result={result} code={code} language={language} setCode={setCode} filename={null} />
-        </div>
-      )}
-
-      {/* Error display */}
-      {result && result.error && (
-        <div style={{ marginTop: '1rem', padding: '1rem', backgroundColor: '#ffebee', borderRadius: '4px', color: '#c62828' }}>
-          <strong>Error:</strong> {result.error}
-        </div>
-      )}
-
-      {showDashboard && <ErrorStatsDashboard />}
-    </div>
-  );
-};
-
-const styles = {
-  page: { fontFamily: 'Segoe UI, sans-serif', backgroundColor: '#f0f4f8', minHeight: '100vh', padding: '2rem' },
-  heading: { textAlign: 'center', color: '#333', fontSize: '2rem', marginBottom: '1rem' },
-  userRow: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1rem', marginBottom: '1rem', paddingRight: '1rem' },
-  logoutBtn: { backgroundColor: '#e53935', color: 'white', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', cursor: 'pointer', fontWeight: 'bold' },
-  githubBtn: { backgroundColor: '#24292f', color: 'white', border: 'none', borderRadius: '6px', padding: '0.4rem 1rem', cursor: 'pointer', fontWeight: 'bold', marginLeft: '0.5rem' },
-  controls: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' },
-  select: { padding: '0.5rem', fontSize: '1rem', borderRadius: '6px', border: '1px solid #ccc', backgroundColor: '#fff' },
-  buttonPrimary: { backgroundColor: '#4CAF50', color: 'white', border: 'none', borderRadius: '6px', padding: '0.6rem 1.2rem', cursor: 'pointer', fontWeight: 'bold' },
-  buttonSecondary: { backgroundColor: '#2196F3', color: 'white', border: 'none', borderRadius: '6px', padding: '0.6rem 1.2rem', cursor: 'pointer', fontWeight: 'bold' },
+  return <Home user={user} />;
 };
 
 export default ProtectedApp;
