@@ -78,10 +78,11 @@ const Footer = () => {
             <div className="link-group">
               <h4>Company</h4>
               <ul>
-                <li><a href="#">About Us</a></li>
-                <li><a href="#">Privacy Policy</a></li>
+                <li><a href="/ownership">Ownership</a></li>
+
+                {/* <li><a href="#">Privacy Policy</a></li>
                 <li><a href="#">Terms of Service</a></li>
-                <li><a href="#">Security</a></li>
+                <li><a href="#">Security</a></li> */}
               </ul>
             </div>
           </div>

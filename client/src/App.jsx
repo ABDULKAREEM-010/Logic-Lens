@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
 import ProtectedApp from './ProtectedApp';
 import Login from './pages/Login';
@@ -13,38 +13,9 @@ import Teams from './pages/Teams';
 import TeamRedirect from './components/TeamRedirect';
 import LeaderDashboard from './pages/LeaderDashboard';
 import MemberDashboard from './pages/MemberDashboard';
+import Ownership from './pages/ownership';
+import Home from './pages/Home';
 import { supabase } from './supabaseClient';
-
-// 🔒 Security: Clean up any global GitHub data on app load to prevent cross-user data leaks
-const cleanupGlobalGitHubData = () => {
-  try {
-    // Remove old global GitHub data that could leak between users
-    const keysToRemove = [
-      'github_access_token',
-      'github_user', 
-      'github_selected_code',
-      'github_selected_filename',
-      'github_multi_files'
-    ];
-    
-    keysToRemove.forEach(key => {
-      if (localStorage.getItem(key)) {
-        console.warn(`🔒 Removing global GitHub data: ${key}`);
-        localStorage.removeItem(key);
-      }
-    });
-    
-    // Clear any old GitHub session storage
-    Object.keys(sessionStorage).forEach(key => {
-      if (key.startsWith('github_oauth_exchanged_') && !key.includes('_')) {
-        console.warn(`🔒 Removing global GitHub session data: ${key}`);
-        sessionStorage.removeItem(key);
-      }
-    });
-  } catch (error) {
-    console.warn('Error during GitHub data cleanup:', error);
-  }
-};
 
 // ✅ Unified Dashboard Router — decides between Admin, Teams, or Team Creation
 function DashboardRouter() {
@@ -108,7 +79,6 @@ function DashboardRouter() {
   if (loading)
     return <div style={{ textAlign: 'center', marginTop: '2rem' }}>Loading dashboard...</div>;
 
-  // Only show admin dashboard if user is admin, otherwise redirect happens in useEffect
   return isAdmin ? <AdminDashboard /> : null;
 }
 
@@ -144,19 +114,21 @@ function AdminProtectedRoute({ children }) {
     checkAdmin();
   }, [navigate]);
 
-  if (loading) return <div style={{ textAlign: 'center', marginTop: '2rem' }}>Checking admin access...</div>;
+  if (loading)
+    return <div style={{ textAlign: 'center', marginTop: '2rem' }}>Checking admin access...</div>;
   return allowed ? children : null;
 }
 
+// ✅ Main App Component
 const App = () => {
-  // 🔒 Security: Clean up any global GitHub data on app load
-  useEffect(() => {
-    cleanupGlobalGitHubData();
-  }, []);
-
   return (
     <Layout>
       <Routes>
+        {/* 🏠 Public Landing & Info Routes */}
+        <Route path="/" element={<Home />} />
+        <Route path="/home" element={<Home />} />
+        <Route path="/ownership" element={<Ownership />} />
+
         {/* 🛑 Admin-only access */}
         <Route
           path="/admin"
@@ -171,23 +143,23 @@ const App = () => {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/github-callback" element={<GithubCallback />} />
-        
-        {/* 🛡️ Protected team routes - redirect to teams if user already has teams */}
-        <Route 
-          path="/create-team" 
+
+        {/* 🛡️ Protected team routes */}
+        <Route
+          path="/create-team"
           element={
             <TeamRedirect>
               <CreateTeam />
             </TeamRedirect>
-          } 
+          }
         />
-        <Route 
-          path="/join-team" 
+        <Route
+          path="/join-team"
           element={
             <TeamRedirect>
               <JoinTeam />
             </TeamRedirect>
-          } 
+          }
         />
         <Route path="/join/:teamId" element={<JoinTeam />} />
         <Route path="/teams" element={<ProtectedApp><Teams /></ProtectedApp>} />
@@ -204,7 +176,7 @@ const App = () => {
           }
         />
 
-        {/* ✏️ Editor */}
+        {/* ✏️ Code Editor */}
         <Route
           path="/editor"
           element={
@@ -214,8 +186,8 @@ const App = () => {
           }
         />
 
-        {/* 🏠 Default route (redirects to dashboard) */}
-        <Route path="/*" element={<ProtectedApp />} />
+        {/* 🌐 Fallback: redirect to Home */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
   );

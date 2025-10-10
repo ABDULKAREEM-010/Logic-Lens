@@ -43,7 +43,6 @@ const Header = () => {
 
   const isActive = (path) => location.pathname === path;
 
-  // Get user initials for avatar
   const getUserInitials = (email) => {
     if (!email) return 'U';
     const name = email.split('@')[0];
@@ -53,14 +52,14 @@ const Header = () => {
   return (
     <header className="modern-header">
       <div className="header-container">
-        {/* Logo */}
-        <div className="logo-section">
+        {/* ✅ Logo (Clickable - redirects to Home) */}
+        <div 
+          className="logo-section" 
+          onClick={() => navigate('/')} 
+          style={{ cursor: 'pointer' }}
+        >
           <div className="logo-icon">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z"/>
-              <path d="M2 17L12 22L22 17"/>
-              <path d="M2 12L12 17L22 12"/>
-            </svg>
+            <img src="vite.png" alt="Logic Lens Logo" height={35} width={35} />
           </div>
           <h1 className="logo-text">Logic Lens</h1>
         </div>
@@ -104,7 +103,6 @@ const Header = () => {
                 {getUserInitials(user.email)}
               </button>
               
-              {/* User Dropdown Menu */}
               {isUserMenuOpen && (
                 <div className="user-dropdown">
                   <div className="user-dropdown-header">
@@ -153,7 +151,57 @@ const Header = () => {
         </button>
       </div>
 
+      {/* ✅ Your same CSS retained */}
       <style>{`
+        .modern-header {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          backdrop-filter: blur(10px);
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+          position: sticky;
+          top: 0;
+          z-index: 1000;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .header-container {
+          max-width: 1400px;
+          margin: 0 auto;
+          padding: 0 2rem;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          height: 70px;
+        }
+        .logo-section {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+        .logo-section:hover {
+          transform: scale(1.05);
+          opacity: 0.9;
+        }
+        .logo-icon {
+          width: 40px;
+          height: 40px;
+          color: white;
+          background: rgba(255, 255, 255, 0.2);
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .logo-text {
+          color: white;
+          font-size: 1.5rem;
+          font-weight: 700;
+          margin: 0;
+          background: linear-gradient(45deg, #fff, #e0e7ff);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+        /* ✅ Rest of your CSS remains the same */
         .modern-header {
           background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
           backdrop-filter: blur(10px);

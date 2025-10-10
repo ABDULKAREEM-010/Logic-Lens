@@ -3,7 +3,6 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
   PieChart, Pie, Cell, LineChart, Line, Area, AreaChart
 } from 'recharts';
-import { API_ENDPOINTS } from '../config/api';
 
 const ErrorStatsDashboard = () => {
   const [stats, setStats] = useState({});
@@ -14,7 +13,7 @@ const ErrorStatsDashboard = () => {
   const fetchData = async () => {
     try {
       setRefreshing(true);
-      const res = await fetch(API_ENDPOINTS.FEEDBACK_ALL);
+      const res = await fetch('http://localhost:5000/api/feedback/all');
       const data = await res.json();
       const grouped = {};
 

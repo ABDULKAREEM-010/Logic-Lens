@@ -1,9 +1,19 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  BarChart,
+  XAxis,
+  YAxis,
+  Bar,
+  ResponsiveContainer,
+} from "recharts";
 
-const COLORS = ["#667eea", "#764ba2", "#f093fb", "#f5576c", "#4facfe", "#00f2fe"];
+const COLORS = ["#60a5fa", "#a78bfa", "#f472b6", "#facc15", "#34d399", "#38bdf8"];
 
 const LeaderDashboard = () => {
   const { teamId } = useParams();
@@ -15,99 +25,61 @@ const LeaderDashboard = () => {
   const [teamInfo, setTeamInfo] = useState(null);
   const [accessDenied, setAccessDenied] = useState(false);
 
-  // Fetch members and feedback
+  // ✅ Fetch team data + feedback
   useEffect(() => {
     if (!teamId) return;
 
     const fetchData = async () => {
       try {
         setLoading(true);
-        
-        // First, check if user is authenticated
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) {
-          navigate('/login');
+          navigate("/login");
           return;
         }
 
-        // Get team info first to check ownership
         const { data: team, error: teamError } = await supabase
           .from("teams")
           .select("*")
           .eq("team_id", teamId)
           .single();
-          
+
         if (teamError || !team) {
-          console.error('Team not found');
           setAccessDenied(true);
           setLoading(false);
           return;
         }
 
-        // Check if user is the actual team owner (check both owner_id and team_lead_id)
-        const isActualOwner = team.owner_id === user.id || team.team_lead_id === user.id;
-        
-        // Also check the team_members table for additional verification
-        const { data: memberData, error: memberError } = await supabase
-          .from('team_members')
-          .select('role')
-          .eq('team_id', teamId)
-          .eq('user_id', user.id)
-          .single();
-
-        // User must be the actual owner (in teams table) AND should be in team_members
-        if (!isActualOwner || memberError || !memberData) {
-          console.error('Access denied: User is not the team owner');
+        const isOwner = team.owner_id === user.id || team.team_lead_id === user.id;
+        if (!isOwner) {
           setAccessDenied(true);
           setLoading(false);
           return;
         }
-        
+
         setTeamInfo(team);
 
-        // 1. Fetch team members
-        const { data: teamMembers, error: tmError } = await supabase
+        const { data: teamMembers } = await supabase
           .from("team_members")
           .select("user_id")
           .eq("team_id", teamId);
 
-        if (tmError) {
-          console.error("Error fetching team members:", tmError.message);
-          return;
-        }
-
         const memberIds = teamMembers.map((m) => m.user_id);
 
-        // 2. Fetch user emails
-        let users = [];
-        if (memberIds.length > 0) {
-          const { data: userData, error: uError } = await supabase
-            .from("user_profiles")
-            .select("id, email")
-            .in("id", memberIds);
+        const { data: userData } = await supabase
+          .from("user_profiles")
+          .select("id, email")
+          .in("id", memberIds);
 
-          if (uError) {
-            console.error("Error fetching users:", uError.message);
-          } else {
-            users = userData;
-          }
-        }
-        setMembers(users);
+        setMembers(userData || []);
 
-        // 3. Fetch feedback
         let query = supabase.from("feedback").select("*").eq("team_id", teamId);
-        if (selectedMember !== "all") {
-          query = query.eq("user_id", selectedMember);
-        }
+        if (selectedMember !== "all") query = query.eq("user_id", selectedMember);
 
-        const { data: feedbackData, error: fError } = await query;
-        if (fError) {
-          console.error("Error fetching feedback:", fError.message);
-        } else {
-          setFeedback(feedbackData || []);
-        }
+        const { data: feedbackData } = await query;
+        setFeedback(feedbackData || []);
       } catch (err) {
-        console.error("Unexpected error fetching data:", err);
+        console.error("Error fetching data:", err);
       } finally {
         setLoading(false);
       }
@@ -116,165 +88,224 @@ const LeaderDashboard = () => {
     fetchData();
   }, [teamId, selectedMember]);
 
-  // Chart data
+  // ✅ Prepare chart data
   const pieData = [
     { name: "Accepted", value: feedback.filter((f) => f.decision === "accepted").length },
     { name: "Rejected", value: feedback.filter((f) => f.decision === "rejected").length },
   ];
 
   const typeData = feedback.reduce((acc, f) => {
-    const type = f.suggestion_type || 'Unknown';
+    const type = f.suggestion_type || "Unknown";
     acc[type] = (acc[type] || 0) + 1;
     return acc;
   }, {});
 
   const barData = Object.entries(typeData).map(([type, count]) => ({ type, count }));
 
-  // Map user_id to email for table display
-  const getEmail = (userId) => {
-    const user = members.find((m) => m.id === userId);
-    return user?.email || "Unknown";
-  };
+  const getEmail = (userId) => members.find((m) => m.id === userId)?.email || "Unknown";
 
   const stats = {
     total: feedback.length,
-    accepted: feedback.filter(f => f.decision === 'accepted').length,
-    rejected: feedback.filter(f => f.decision === 'rejected').length,
-    members: members.length
+    accepted: feedback.filter((f) => f.decision === "accepted").length,
+    rejected: feedback.filter((f) => f.decision === "rejected").length,
+    members: members.length,
   };
 
-  if (loading) {
+  // ✅ Download CSV
+  const handleDownloadCSV = () => {
+    const headers = ["Member", "Type", "Decision", "Suggestion", "Comment"];
+    const rows = feedback.map((f) => [
+      getEmail(f.user_id),
+      f.suggestion_type || "General",
+      f.decision || "Pending",
+      `"${f.suggestion || "-"}"`,
+      `"${f.comment || "-"}"`,
+    ]);
+
+    const csvContent =
+      [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${teamInfo?.team_name || "team"}_feedback.csv`;
+    link.click();
+  };
+
+  // ✅ Loading UI
+  if (loading)
     return (
-      <div className="container fade-in">
-        <div className="text-center py-20">
-          <div className="card card-glass inline-block p-8">
-            <div className="text-6xl mb-4">📋</div>
-            <h2 className="text-2xl font-bold text-white mb-2">Loading Dashboard</h2>
-            <p className="text-white opacity-80">Fetching team analytics...</p>
-            <div className="flex justify-center mt-6">
-              <div className="loading-spinner"></div>
-            </div>
+      <div style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg,#0f172a,#1e1b4b,#0f172a)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        color: "#fff",
+        fontFamily: "Poppins, sans-serif"
+      }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 10 }}>
+            Loading Team Dashboard...
           </div>
+          <div style={{ color: "#94a3b8" }}>Fetching analytics...</div>
+          <div style={{
+            margin: "20px auto",
+            width: 40,
+            height: 40,
+            borderRadius: "50%",
+            borderTop: "3px solid #8b5cf6",
+            animation: "spin 1s linear infinite"
+          }}/>
+          <style>{`@keyframes spin {to{transform:rotate(360deg);}}`}</style>
         </div>
       </div>
     );
-  }
 
-  // Access denied UI
-  if (accessDenied) {
+  if (accessDenied)
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
-        <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-2xl p-8 max-w-md mx-4 text-center border border-white border-opacity-20">
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center text-center text-white">
+        <div className="bg-white bg-opacity-10 backdrop-blur-lg rounded-2xl p-8 max-w-md mx-4 border border-white border-opacity-20">
           <div className="text-6xl mb-4">🔒</div>
-          <h2 className="text-2xl font-bold text-white mb-4">Access Denied</h2>
-          <p className="text-white opacity-90 mb-6">
-            Only team owners can access the leader dashboard. You need to be the team owner to view this page.
+          <h2 className="text-2xl font-bold mb-4">Access Denied</h2>
+          <p className="opacity-90 mb-6">
+            Only the team owner can access this dashboard.
           </p>
-          <Link 
-            to="/teams" 
-            className="inline-block bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105"
-          >
+          <Link to="/teams" className="inline-block bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg transition duration-300 transform hover:scale-105">
             Back to Teams
           </Link>
         </div>
       </div>
     );
-  }
 
   return (
-    <div className="container fade-in">
-      {/* Header */}
-      <div className="text-center mb-8">
-        <h1 className="text-4xl font-bold text-white mb-2">
-          📋 Team Dashboard
-        </h1>
-        <p className="text-lg text-white opacity-90">
-          {teamInfo ? `Analytics for "${teamInfo.team_name}"` : `Team ${teamId} Analytics`}
-        </p>
-      </div>
+    <div style={{
+      minHeight: "100vh",
+      background: "linear-gradient(135deg,#0f172a,#1e1b4b,#0f172a)",
+      color: "#fff",
+      padding: "40px 20px",
+      fontFamily: "Poppins, sans-serif"
+    }}>
+      <div style={{ maxWidth: 1300, margin: "0 auto" }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <h1 style={{
+            fontSize: "2.8rem",
+            fontWeight: 800,
+            background: "linear-gradient(to right,#8b5cf6,#f472b6,#60a5fa)",
+            WebkitBackgroundClip: "text",
+            color: "transparent",
+            marginBottom: 10
+          }}>
+            📋 Team Dashboard
+          </h1>
+          <p style={{ color: "#cbd5e1", fontWeight: 500 }}>
+            {teamInfo ? `Analytics for "${teamInfo.team_name}"` : "Team Analytics"}
+          </p>
+        </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="card card-glass scale-in">
-          <div className="card-body text-center">
-            <div className="text-4xl mb-2">📊</div>
-            <h3 className="text-xl font-semibold text-white mb-1">Total Feedback</h3>
-            <p className="text-3xl font-bold text-white">{stats.total}</p>
-          </div>
+        {/* Summary Cards */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
+          gap: 20,
+          marginBottom: 40
+        }}>
+          {[
+            { icon: "📊", title: "Total Feedback", value: stats.total },
+            { icon: "✅", title: "Accepted", value: stats.accepted },
+            { icon: "❌", title: "Rejected", value: stats.rejected },
+            { icon: "👥", title: "Team Members", value: stats.members }
+          ].map((c, i) => (
+            <div key={i}
+              style={{
+                background: "rgba(17,25,40,0.85)",
+                borderRadius: 20,
+                border: "1px solid rgba(148,163,184,0.15)",
+                boxShadow: "0 8px 30px rgba(0,0,0,0.4)",
+                padding: 24,
+                textAlign: "center",
+                transition: "transform 0.3s ease, box-shadow 0.3s ease"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-6px) scale(1.03)";
+                e.currentTarget.style.boxShadow = "0 12px 36px rgba(0,0,0,0.6)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "none";
+                e.currentTarget.style.boxShadow = "0 8px 30px rgba(0,0,0,0.4)";
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 10 }}>{c.icon}</div>
+              <div style={{ fontWeight: 700, fontSize: 18 }}>{c.title}</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: "#a78bfa" }}>
+                {c.value}
+              </div>
+            </div>
+          ))}
         </div>
-        
-        <div className="card card-glass scale-in" style={{ animationDelay: '0.1s' }}>
-          <div className="card-body text-center">
-            <div className="text-4xl mb-2">✅</div>
-            <h3 className="text-xl font-semibold text-white mb-1">Accepted</h3>
-            <p className="text-3xl font-bold text-green-300">{stats.accepted}</p>
-          </div>
-        </div>
-        
-        <div className="card card-glass scale-in" style={{ animationDelay: '0.2s' }}>
-          <div className="card-body text-center">
-            <div className="text-4xl mb-2">❌</div>
-            <h3 className="text-xl font-semibold text-white mb-1">Rejected</h3>
-            <p className="text-3xl font-bold text-red-300">{stats.rejected}</p>
-          </div>
-        </div>
-        
-        <div className="card card-glass scale-in" style={{ animationDelay: '0.3s' }}>
-          <div className="card-body text-center">
-            <div className="text-4xl mb-2">👥</div>
-            <h3 className="text-xl font-semibold text-white mb-1">Team Members</h3>
-            <p className="text-3xl font-bold text-blue-300">{stats.members}</p>
-          </div>
-        </div>
-      </div>
 
-      {/* Filter Section */}
-      <div className="card card-glass mb-8 slide-up">
-        <div className="card-body">
-          <div className="flex items-center justify-between flex-wrap gap-4">
+        {/* Filter Dropdown */}
+        <div style={{
+          background: "rgba(17,25,40,0.85)",
+          borderRadius: 20,
+          padding: 20,
+          marginBottom: 40,
+          border: "1px solid rgba(148,163,184,0.15)"
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20 }}>
             <div>
-              <h3 className="text-xl font-semibold text-white mb-2">Filter Analytics</h3>
-              <p className="text-white opacity-80">Select a team member to view individual performance</p>
+              <h3 style={{ fontWeight: 700 }}>Filter by Member</h3>
+              <p style={{ color: "#94a3b8" }}>View analytics for an individual</p>
             </div>
-            <div className="form-group mb-0">
-              <select 
-                value={selectedMember} 
-                onChange={(e) => setSelectedMember(e.target.value)}
-                className="form-select"
-                style={{ minWidth: '200px' }}
-              >
-                <option value="all">All Members</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.email || "Unknown"}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={selectedMember}
+              onChange={(e) => setSelectedMember(e.target.value)}
+              style={{
+                background: "rgba(255,255,255,0.1)",
+                borderRadius: 10,
+                color: "#0c0505ff",
+                border: "1px solid rgba(255,255,255,0.2)",
+                padding: "10px 14px",
+                cursor: "pointer",
+                outline: "none"
+              }}
+            >
+              <option value="all">All Members</option>
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>{m.email}</option>
+              ))}
+            </select>
           </div>
         </div>
-      </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        {/* Pie Chart */}
-        <div className="card shadow-lg slide-up">
-          <div className="card-header">
-            <h3 className="text-xl font-semibold">Feedback Distribution</h3>
-          </div>
-          <div className="card-body">
-            <ResponsiveContainer width="100%" height={300}>
+        {/* Charts */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit,minmax(360px,1fr))",
+          gap: 24,
+          marginBottom: 40
+        }}>
+          <div style={{
+            background: "rgba(17,25,40,0.85)",
+            borderRadius: 20,
+            border: "1px solid rgba(148,163,184,0.15)",
+            padding: 24
+          }}>
+            <h3 style={{ fontWeight: 700, marginBottom: 10 }}>🥧 Feedback Distribution</h3>
+            <ResponsiveContainer width="100%" height={280}>
               <PieChart>
                 <Pie
                   data={pieData}
+                  dataKey="value"
+                  nameKey="name"
                   cx="50%"
                   cy="50%"
-                  labelLine={false}
-                  label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
                   outerRadius={100}
-                  dataKey="value"
+                  label={({ name, value, percent }) =>
+                    `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
+                  }
                 >
-                  {pieData.map((_, index) => (
+                  {pieData.map((entry, index) => (
                     <Cell key={index} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -282,96 +313,94 @@ const LeaderDashboard = () => {
               </PieChart>
             </ResponsiveContainer>
           </div>
-        </div>
 
-        {/* Bar Chart */}
-        <div className="card shadow-lg slide-up" style={{ animationDelay: '0.2s' }}>
-          <div className="card-header">
-            <h3 className="text-xl font-semibold">Suggestion Types</h3>
-          </div>
-          <div className="card-body">
-            <ResponsiveContainer width="100%" height={300}>
+          <div style={{
+            background: "rgba(17,25,40,0.85)",
+            borderRadius: 20,
+            border: "1px solid rgba(148,163,184,0.15)",
+            padding: 24
+          }}>
+            <h3 style={{ fontWeight: 700, marginBottom: 10 }}>📊 Suggestion Types</h3>
+            <ResponsiveContainer width="100%" height={280}>
               <BarChart data={barData}>
-                <XAxis dataKey="type" />
-                <YAxis allowDecimals={false} />
+                <XAxis dataKey="type" stroke="#94a3b8" />
+                <YAxis allowDecimals={false} stroke="#94a3b8" />
                 <Tooltip />
-                <Bar dataKey="count" fill="var(--primary-blue)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" fill="url(#barGradient)" radius={[6, 6, 0, 0]} />
+                <defs>
+                  <linearGradient id="barGradient" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#60a5fa" />
+                    <stop offset="100%" stopColor="#8b5cf6" />
+                  </linearGradient>
+                </defs>
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
-      </div>
 
-      {/* Feedback Table */}
-      <div className="card shadow-lg slide-up">
-        <div className="card-header">
-          <h3 className="text-xl font-semibold">Detailed Feedback History</h3>
-          <p className="text-gray-600 text-sm">All feedback submissions from team members</p>
-        </div>
-        <div className="card-body p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="table-header">Member</th>
-                  <th className="table-header">Type</th>
-                  <th className="table-header">Decision</th>
-                  <th className="table-header">Suggestion</th>
-                  <th className="table-header">Comment</th>
-                  <th className="table-header">Code</th>
+        {/* Feedback Table */}
+        <div style={{
+          background: "rgba(17,25,40,0.85)",
+          borderRadius: 20,
+          border: "1px solid rgba(148,163,184,0.15)",
+          padding: 24,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.4)"
+        }}>
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 16
+          }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700 }}>📋 Feedback Records</h3>
+            <button
+              onClick={handleDownloadCSV}
+              style={{
+                padding: "8px 16px",
+                borderRadius: 10,
+                border: "none",
+                background: "linear-gradient(90deg,#6366f1,#8b5cf6,#ec4899)",
+                color: "#fff",
+                fontWeight: 700,
+                cursor: "pointer",
+                transition: "0.2s"
+              }}
+            >
+              ⬇️ Download CSV
+            </button>
+          </div>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", color: "#fff" }}>
+              <thead>
+                <tr style={{ background: "rgba(255,255,255,0.05)" }}>
+                  {["Member", "Type", "Decision", "Suggestion", "Comment"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "12px", color: "#94a3b8" }}>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {feedback.length > 0 ? feedback.map((f, index) => (
-                  <tr key={f.id} className={`table-row ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                    <td className="table-cell">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-gradient-to-r from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                          {getEmail(f.user_id).charAt(0).toUpperCase()}
-                        </div>
-                        <span className="font-medium">{getEmail(f.user_id)}</span>
-                      </div>
-                    </td>
-                    <td className="table-cell">
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                        {f.suggestion_type || 'General'}
-                      </span>
-                    </td>
-                    <td className="table-cell">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        f.decision === 'accepted' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {f.decision === 'accepted' ? '✅ Accepted' : '❌ Rejected'}
-                      </span>
-                    </td>
-                    <td className="table-cell max-w-xs">
-                      <div className="truncate" title={f.suggestion}>
-                        {f.suggestion || '-'}
-                      </div>
-                    </td>
-                    <td className="table-cell max-w-xs">
-                      <div className="truncate" title={f.comment}>
-                        {f.comment || '-'}
-                      </div>
-                    </td>
-                    <td className="table-cell">
-                      <details>
-                        <summary className="cursor-pointer text-blue-600 hover:text-blue-800 text-sm">
-                          View Code
-                        </summary>
-                        <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto max-w-md">
-                          {f.code || 'No code available'}
-                        </pre>
-                      </details>
-                    </td>
-                  </tr>
-                )) : (
+                {feedback.length > 0 ? (
+                  feedback.map((f, i) => (
+                    <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <td style={{ padding: "10px 12px" }}>{getEmail(f.user_id)}</td>
+                      <td style={{ padding: "10px 12px" }}>{f.suggestion_type || "General"}</td>
+                      <td style={{ padding: "10px 12px" }}>
+                        {f.decision === "accepted"
+                          ? "✅ Accepted"
+                          : f.decision === "rejected"
+                          ? "❌ Rejected"
+                          : "⏳ Pending"}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>{f.suggestion || "-"}</td>
+                      <td style={{ padding: "10px 12px" }}>{f.comment || "-"}</td>
+                    </tr>
+                  ))
+                ) : (
                   <tr>
-                    <td colSpan="6" className="table-cell text-center py-8 text-gray-500">
-                      <div className="text-4xl mb-2">📋</div>
-                      No feedback data available for this team
+                    <td colSpan="5" style={{ textAlign: "center", padding: "20px", color: "#94a3b8" }}>
+                      No feedback records available
                     </td>
                   </tr>
                 )}
@@ -379,187 +408,33 @@ const LeaderDashboard = () => {
             </table>
           </div>
         </div>
-      </div>
 
-      {/* Action Buttons */}
-      <div className="text-center mt-8">
-        <div className="flex gap-4 justify-center flex-wrap">
-          <Link to="/create-team" className="btn btn-secondary">
-            🆕 Create New Team
-          </Link>
-          <Link to="/editor" className="btn btn-primary">
-            📝 Code Review
-          </Link>
-          <Link to="/" className="btn btn-ghost">
-            🏠 Home
-          </Link>
+        {/* Navigation Buttons */}
+        <div style={{
+          textAlign: "center",
+          marginTop: 40,
+          display: "flex",
+          justifyContent: "center",
+          gap: 20,
+          flexWrap: "wrap"
+        }}>
+          <Link to="/create-team" style={buttonStyle("#6366f1", "#8b5cf6")}>🆕 Create Team</Link>
+          <Link to="/editor" style={buttonStyle("#34d399", "#059669")}>📝 Code Review</Link>
+          <Link to="/" style={buttonStyle("#f472b6", "#ec4899")}>🏠 Home</Link>
         </div>
       </div>
-
-  <style>{`
-        .loading-spinner {
-          width: 32px;
-          height: 32px;
-          border: 3px solid rgba(255, 255, 255, 0.3);
-          border-top: 3px solid white;
-          border-radius: 50%;
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-
-        .grid {
-          display: grid;
-        }
-
-        .grid-cols-1 {
-          grid-template-columns: repeat(1, minmax(0, 1fr));
-        }
-
-        @media (min-width: 768px) {
-          .md\\:grid-cols-4 {
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-          }
-        }
-
-        @media (min-width: 1024px) {
-          .lg\\:grid-cols-2 {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-        }
-
-        .gap-6 {
-          gap: 1.5rem;
-        }
-
-        .gap-8 {
-          gap: 2rem;
-        }
-
-        .table-header {
-          padding: 1rem;
-          text-align: left;
-          font-weight: 600;
-          color: #374151;
-          border-bottom: 1px solid #e5e7eb;
-        }
-
-        .table-cell {
-          padding: 1rem;
-          border-bottom: 1px solid #e5e7eb;
-          vertical-align: top;
-        }
-
-        .table-row:hover {
-          background-color: #f9fafb;
-        }
-
-        .w-full {
-          width: 100%;
-        }
-
-        .w-8 {
-          width: 2rem;
-        }
-
-        .h-8 {
-          height: 2rem;
-        }
-
-        .max-w-xs {
-          max-width: 20rem;
-        }
-
-        .max-w-md {
-          max-width: 28rem;
-        }
-
-        .truncate {
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .overflow-x-auto {
-          overflow-x: auto;
-        }
-
-        .inline-block {
-          display: inline-block;
-        }
-
-        .py-8 {
-          padding-top: 2rem;
-          padding-bottom: 2rem;
-        }
-
-        .py-20 {
-          padding-top: 5rem;
-          padding-bottom: 5rem;
-        }
-
-        .flex {
-          display: flex;
-        }
-
-        .items-center {
-          align-items: center;
-        }
-
-        .justify-center {
-          justify-content: center;
-        }
-
-        .justify-between {
-          justify-content: space-between;
-        }
-
-        .gap-2 {
-          gap: 0.5rem;
-        }
-
-        .gap-4 {
-          gap: 1rem;
-        }
-
-        .flex-wrap {
-          flex-wrap: wrap;
-        }
-
-        .text-green-300 {
-          color: #9ae6b4;
-        }
-
-        .text-red-300 {
-          color: #feb2b2;
-        }
-
-        .text-blue-300 {
-          color: #90cdf4;
-        }
-
-        .rounded-full {
-          border-radius: 9999px;
-        }
-
-        .bg-gradient-to-r {
-          background-image: linear-gradient(to right, var(--tw-gradient-stops));
-        }
-
-        .from-blue-400 {
-          --tw-gradient-from: #63b3ed;
-          --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(99, 179, 237, 0));
-        }
-
-        .to-purple-500 {
-          --tw-gradient-to: #9f7aea;
-        }
-      `}</style>
     </div>
   );
 };
+
+const buttonStyle = (c1, c2) => ({
+  padding: "10px 18px",
+  borderRadius: 10,
+  background: `linear-gradient(90deg,${c1},${c2})`,
+  color: "#fff",
+  fontWeight: 700,
+  textDecoration: "none",
+  transition: "0.3s",
+});
 
 export default LeaderDashboard;

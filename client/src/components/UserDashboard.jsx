@@ -12,14 +12,14 @@ import {
 } from "recharts";
 import { supabase } from "../supabaseClient";
 
-const COLORS = ["#667eea", "#764ba2", "#f093fb", "#f5576c", "#4facfe", "#00f2fe"];
+const COLORS = ["#60a5fa", "#a78bfa", "#f472b6", "#facc15", "#34d399", "#38bdf8"];
 
 function UserDashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [user, setUser] = useState(null);
-  const [selectedFeedback, setSelectedFeedback] = useState(null); // 👁️ Code view modal
+  const [selectedFeedback, setSelectedFeedback] = useState(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -86,16 +86,53 @@ function UserDashboard() {
 
   if (loading) {
     return (
-      <div className="container fade-in text-center py-20">
-        <h2 className="text-2xl font-bold mb-2">Loading User Dashboard...</h2>
-        <p className="text-gray">Fetching your personal analytics...</p>
-        <div className="loading-spinner mx-auto mt-6"></div>
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "linear-gradient(135deg,#0f172a,#1e1b4b,#0f172a)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          color: "#fff",
+          fontFamily: "Poppins, sans-serif",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 10 }}>
+            Loading User Dashboard...
+          </div>
+          <div style={{ color: "#94a3b8" }}>
+            Fetching your personal analytics...
+          </div>
+          <div
+            style={{
+              margin: "20px auto",
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              borderTop: "3px solid #8b5cf6",
+              animation: "spin 1s linear infinite",
+            }}
+          />
+          <style>{`@keyframes spin {to{transform:rotate(360deg);}}`}</style>
+        </div>
       </div>
     );
   }
 
   if (!stats) {
-    return <p className="text-center mt-10 text-gray-600">No data available.</p>;
+    return (
+      <div
+        style={{
+          textAlign: "center",
+          color: "#cbd5e1",
+          marginTop: 100,
+          fontFamily: "Poppins, sans-serif",
+        }}
+      >
+        No data available.
+      </div>
+    );
   }
 
   const pieData = [
@@ -114,280 +151,368 @@ function UserDashboard() {
     stats.total > 0 ? ((stats.accepted / stats.total) * 100).toFixed(1) : 0;
 
   return (
-    <div className="container fade-in">
-      {/* Header */}
-      <div className="text-center mb-10">
-        <h1 className="dashboard-title">👤 User Dashboard</h1>
-        <p className="dashboard-subtitle font-bold">
-          Your personal feedback and code review insights
-        </p>
-        <button
-          onClick={fetchStats}
-          disabled={refreshing}
-          className="btn-refresh"
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg,#0f172a,#1e1b4b,#0f172a)",
+        color: "#fff",
+        padding: "40px 20px",
+        fontFamily: "Poppins, sans-serif",
+      }}
+    >
+      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <h1
+            style={{
+              fontSize: "2.8rem",
+              fontWeight: 800,
+              background:
+                "linear-gradient(to right,#a78bfa,#f472b6,#60a5fa)",
+              WebkitBackgroundClip: "text",
+              color: "transparent",
+              marginBottom: 10,
+            }}
+          >
+            👤 User Dashboard
+          </h1>
+          <p style={{ color: "#cbd5e1", fontWeight: 500, fontSize: 16 }}>
+            Your personal feedback and code review insights
+          </p>
+          <button
+            onClick={fetchStats}
+            disabled={refreshing}
+            style={{
+              marginTop: 20,
+              padding: "10px 18px",
+              borderRadius: 10,
+              border: "none",
+              background:
+                "linear-gradient(90deg,#6366f1,#8b5cf6,#ec4899)",
+              color: "#fff",
+              fontWeight: 700,
+              cursor: refreshing ? "not-allowed" : "pointer",
+              opacity: refreshing ? 0.6 : 1,
+              transition: "0.2s",
+            }}
+          >
+            {refreshing ? "🔄 Refreshing..." : "🔄 Refresh Data"}
+          </button>
+        </div>
+
+        {/* Summary Cards */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
+            gap: 20,
+            marginBottom: 40,
+          }}
         >
-          {refreshing ? "🔄 Refreshing..." : "🔄 Refresh Data"}
-        </button>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="cards-grid">
-        {[
-          { icon: "📊", title: "Total Suggestions", value: stats.total },
-          { icon: "✅", title: "Accepted", value: stats.accepted },
-          { icon: "❌", title: "Rejected", value: stats.rejected },
-          { icon: "📈", title: "Accept Rate", value: `${acceptanceRate}%` },
-        ].map((c, i) => (
-          <div key={i} className="card summary-card">
-            <div className="card-body text-center">
-              <div className="card-icon">{c.icon}</div>
-              <h3 className="card-title">{c.title}</h3>
-              <p className="card-value">{c.value}</p>
+          {[
+            { icon: "📊", title: "Total Suggestions", value: stats.total },
+            { icon: "✅", title: "Accepted", value: stats.accepted },
+            { icon: "❌", title: "Rejected", value: stats.rejected },
+            { icon: "📈", title: "Accept Rate", value: `${acceptanceRate}%` },
+          ].map((c, i) => (
+            <div
+              key={i}
+              style={{
+                background: "rgba(17,25,40,0.85)",
+                borderRadius: 20,
+                border: "1px solid rgba(148,163,184,0.15)",
+                boxShadow: "0 8px 30px rgba(0,0,0,0.4)",
+                padding: 24,
+                textAlign: "center",
+                transition: "transform 0.3s ease, box-shadow 0.3s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-6px) scale(1.03)";
+                e.currentTarget.style.boxShadow =
+                  "0 12px 36px rgba(0,0,0,0.6)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "none";
+                e.currentTarget.style.boxShadow =
+                  "0 8px 30px rgba(0,0,0,0.4)";
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 10 }}>{c.icon}</div>
+              <div style={{ fontWeight: 700, fontSize: 18 }}>{c.title}</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: "#a78bfa" }}>
+                {c.value}
+              </div>
             </div>
+          ))}
+        </div>
+
+        {/* Charts */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(360px,1fr))",
+            gap: 24,
+            marginBottom: 40,
+          }}
+        >
+          <div
+            style={{
+              background: "rgba(17,25,40,0.85)",
+              borderRadius: 20,
+              border: "1px solid rgba(148,163,184,0.15)",
+              padding: 24,
+            }}
+          >
+            <h3
+              style={{
+                fontWeight: 700,
+                fontSize: 18,
+                marginBottom: 10,
+                color: "#cbd5e1",
+              }}
+            >
+              🥧 Accept vs Reject
+            </h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  label={({ name, value, percent }) =>
+                    `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
+                  }
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell
+                      key={index}
+                      fill={COLORS[index % COLORS.length]}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
-        ))}
-      </div>
 
-      {/* Charts */}
-      <div className="charts-grid">
-        <div className="card chart-card">
-          <h3 className="chart-title">🥧 Accept vs Reject</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={pieData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                label={({ name, value, percent }) =>
-                  `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
-                }
-              >
-                {pieData.map((entry, index) => (
-                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          <div
+            style={{
+              background: "rgba(17,25,40,0.85)",
+              borderRadius: 20,
+              border: "1px solid rgba(148,163,184,0.15)",
+              padding: 24,
+            }}
+          >
+            <h3
+              style={{
+                fontWeight: 700,
+                fontSize: 18,
+                marginBottom: 10,
+                color: "#cbd5e1",
+              }}
+            >
+              📊 Error Type Breakdown
+            </h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={barData}>
+                <XAxis dataKey="type" stroke="#94a3b8" />
+                <YAxis allowDecimals={false} stroke="#94a3b8" />
+                <Tooltip />
+                <Bar
+                  dataKey="count"
+                  fill="url(#barGradient)"
+                  radius={[6, 6, 0, 0]}
+                />
+                <defs>
+                  <linearGradient id="barGradient" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#60a5fa" />
+                    <stop offset="100%" stopColor="#8b5cf6" />
+                  </linearGradient>
+                </defs>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        <div className="card chart-card">
-          <h3 className="chart-title">📊 Error Type Breakdown</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={barData}>
-              <XAxis dataKey="type" />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Bar dataKey="count" fill="#3182ce" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Feedback Table */}
-      <div className="card feedback-card">
-        <div className="card-header">
-          <h3 className="chart-title">📋 Your Feedback Records</h3>
-          <p className="text-muted">Your personal feedback history</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Comment</th>
-                <th>View Code</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.feedbacks.length > 0 ? (
-                stats.feedbacks.map((fb, i) => (
-                  <tr key={i}>
-                    <td>{fb.suggestion_type || "General"}</td>
-                    <td>{fb.decision}</td>
-                    <td>{fb.comment || "-"}</td>
-                    <td>
-                      <button
-                        onClick={() => setSelectedFeedback(fb)}
-                        className="btn-view"
-                      >
-                        👁️ View
-                      </button>
+        {/* Feedback Table */}
+        <div
+          style={{
+            background: "rgba(17,25,40,0.85)",
+            borderRadius: 20,
+            border: "1px solid rgba(148,163,184,0.15)",
+            padding: 24,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+          }}
+        >
+          <h3
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              marginBottom: 10,
+              color: "#cbd5e1",
+            }}
+          >
+            📋 Your Feedback Records
+          </h3>
+          <div style={{ overflowX: "auto" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                borderSpacing: 0,
+                color: "#fff",
+              }}
+            >
+              <thead>
+                <tr style={{ background: "rgba(255,255,255,0.05)" }}>
+                  {["Type", "Status", "Comment", "View Code"].map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        textAlign: "left",
+                        padding: "12px",
+                        color: "#94a3b8",
+                        fontWeight: 700,
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {stats.feedbacks.length > 0 ? (
+                  stats.feedbacks.map((fb, i) => (
+                    <tr
+                      key={i}
+                      style={{
+                        borderBottom: "1px solid rgba(255,255,255,0.05)",
+                        transition: "background 0.2s",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background =
+                          "rgba(148,163,184,0.05)")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
+                    >
+                      <td style={{ padding: "10px 12px" }}>
+                        {fb.suggestion_type || "General"}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>{fb.decision}</td>
+                      <td style={{ padding: "10px 12px" }}>
+                        {fb.comment || "-"}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <button
+                          onClick={() => setSelectedFeedback(fb)}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 8,
+                            border: "none",
+                            background:
+                              "linear-gradient(90deg,#6366f1,#8b5cf6)",
+                            color: "#fff",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          👁️ View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan="4"
+                      style={{
+                        textAlign: "center",
+                        padding: 20,
+                        color: "#94a3b8",
+                      }}
+                    >
+                      No feedback data available
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="4" className="text-center py-8 text-gray">
-                    No feedback data available
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Modal for Viewing Code */}
-      {selectedFeedback && (
-        <div className="modal-overlay" onClick={() => setSelectedFeedback(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-3">
-              👁️ Code Review ({selectedFeedback.suggestion_type})
-            </h3>
-            <pre className="code-block">{selectedFeedback.code || "No code available"}</pre>
-            <button onClick={() => setSelectedFeedback(null)} className="btn-close">
-              Close
-            </button>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-      )}
 
-      {/* CSS */}
-  <style>{`
-        body {
-          background: #f9fafc;
-          color: #2d3748;
-          font-family: "Segoe UI", sans-serif;
-        }
-
-        .dashboard-title {
-          font-size: 2rem;
-          font-weight: bold;
-          color: #1a202c;
-        }
-
-        .btn-refresh {
-          background: #3182ce;
-          padding: 0.6rem 1.2rem;
-          border-radius: 6px;
-          color: #fff;
-          border: none;
-          margin-top: 1rem;
-          cursor: pointer;
-          font-weight: 500;
-          transition: 0.2s;
-        }
-        .btn-refresh:hover {
-          background: #2b6cb0;
-        }
-
-        .cards-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-          gap: 1.5rem;
-          margin-bottom: 2rem;
-        }
-
-        .summary-card {
-          background: #fff;
-          border: 1px solid #e2e8f0;
-          border-radius: 12px;
-          padding: 1.5rem;
-          text-align: center;
-          transition: transform 0.2s, box-shadow 0.2s;
-        }
-        .summary-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-        }
-
-        .chart-card {
-          background: #fff;
-          padding: 1.5rem;
-          border-radius: 10px;
-          border: 1px solid #e2e8f0;
-          box-shadow: 0 3px 8px rgba(0, 0, 0, 0.03);
-        }
-
-        .table {
-          width: 100%;
-          border-collapse: collapse;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          overflow: hidden;
-          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-        }
-
-        .table th,
-        .table td {
-          padding: 12px;
-          border-bottom: 1px solid #e2e8f0;
-        }
-
-        .table th {
-          background: #f8fafc;
-          font-weight: 600;
-        }
-
-        .table tr:hover {
-          background: #edf2f7;
-        }
-
-        .btn-view {
-          background: #3182ce;
-          color: white;
-          border: none;
-          padding: 5px 10px;
-          border-radius: 5px;
-          cursor: pointer;
-        }
-        
-        .btn-view:hover {
-          background: #2b6cb0;
-        }
-
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.6);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-        }
-
-        .modal-content {
-          background: white;
-          padding: 1.5rem;
-          border-radius: 10px;
-          width: 80%;
-          max-width: 700px;
-          max-height: 80vh;
-          overflow-y: auto;
-          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        }
-
-        .code-block {
-          background: #f7fafc;
-          padding: 1rem;
-          border-radius: 6px;
-          font-family: monospace;
-          white-space: pre-wrap;
-          overflow-x: auto;
-        }
-
-        .btn-close {
-          background: #e53e3e;
-          color: #fff;
-          padding: 0.5rem 1rem;
-          border: none;
-          border-radius: 6px;
-          margin-top: 1rem;
-          cursor: pointer;
-        }
-
-        .btn-close:hover {
-          background: #c53030;
-        }
-      `}</style>
+        {/* Modal for Viewing Code */}
+        {selectedFeedback && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.8)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              zIndex: 999,
+            }}
+            onClick={() => setSelectedFeedback(null)}
+          >
+            <div
+              style={{
+                background: "rgba(17,25,40,0.98)",
+                padding: 24,
+                borderRadius: 14,
+                width: "min(90%,700px)",
+                maxHeight: "80vh",
+                overflowY: "auto",
+                border: "1px solid rgba(148,163,184,0.15)",
+                boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  marginBottom: 10,
+                  color: "#a78bfa",
+                }}
+              >
+                👁️ Code Review ({selectedFeedback.suggestion_type})
+              </h3>
+              <pre
+                style={{
+                  background: "rgba(15,23,42,0.7)",
+                  padding: 14,
+                  borderRadius: 10,
+                  overflowX: "auto",
+                  color: "#cbd5e1",
+                  fontFamily: "monospace",
+                }}
+              >
+                {selectedFeedback.code || "No code available"}
+              </pre>
+              <button
+                onClick={() => setSelectedFeedback(null)}
+                style={{
+                  marginTop: 16,
+                  padding: "8px 14px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "linear-gradient(90deg,#ef4444,#fb7185)",
+                  color: "#fff",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

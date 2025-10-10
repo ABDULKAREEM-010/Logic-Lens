@@ -6,11 +6,12 @@ import { java } from '@codemirror/lang-java';
 import { cpp } from '@codemirror/lang-cpp';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView } from '@codemirror/view';
+import { IoMdDownload } from "react-icons/io";
 
 const CodeEditor = ({ code, setCode, language = 'javascript' }) => {
-  const editorRef = useRef(null); // ✅ Track editor instance
+  const editorRef = useRef(null);
 
-  // Choose language extension based on file type
+  // ✅ Choose language extension
   const getLanguageExtension = (lang) => {
     switch (lang?.toLowerCase()) {
       case 'python': return [python()];
@@ -25,7 +26,29 @@ const CodeEditor = ({ code, setCode, language = 'javascript' }) => {
     }
   };
 
-  // Editor extensions and styling
+  // ✅ Download code as file
+  const handleDownloadCode = () => {
+    if (!code) {
+      alert('No code to download!');
+      return;
+    }
+    const fileExt = language === 'python' ? 'py' :
+                    language === 'java' ? 'java' :
+                    language === 'cpp' ? 'cpp' :
+                    language === 'c' ? 'c' :
+                    language === 'javascript' ? 'js' : 'txt';
+    const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `my_code.${fileExt}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // ✅ Editor extensions and styling
   const extensions = [
     ...getLanguageExtension(language),
     EditorView.theme({
@@ -50,7 +73,7 @@ const CodeEditor = ({ code, setCode, language = 'javascript' }) => {
     EditorView.lineWrapping,
   ];
 
-  // ✅ FIX: When parent (ResultPanel) updates `code`, sync CodeMirror content
+  // ✅ Sync code updates
   useEffect(() => {
     if (editorRef.current && code !== editorRef.current.state.doc.toString()) {
       editorRef.current.dispatch({
@@ -77,8 +100,16 @@ const CodeEditor = ({ code, setCode, language = 'javascript' }) => {
             {language?.toUpperCase() || 'CODE'} Editor
           </span>
         </div>
-        <div className="text-xs text-white opacity-60">
-          {code?.length || 0} characters
+
+        {/* ✅ Character count + Download button */}
+        <div className="flex items-center gap-3">
+          <div className="text-xs text-white opacity-60">
+            {code?.length || 0} characters
+          </div>
+          <button onClick={handleDownloadCode} className="btn-download">
+            <IoMdDownload />
+             Download
+          </button>
         </div>
       </div>
 
@@ -91,8 +122,9 @@ const CodeEditor = ({ code, setCode, language = 'javascript' }) => {
           extensions={extensions}
           onChange={(value) => setCode?.(value)}
           placeholder={`// Start typing your code here...\n// The AI will analyze it for improvements and suggestions`}
-          // ✅ FIX: Capture editor instance
-          onCreateEditor={(editor) => (editorRef.current = editor)}
+          onCreateEditor={(editor) => {
+            editorRef.current = editor;
+          }}
         />
       </div>
 
@@ -111,7 +143,7 @@ const CodeEditor = ({ code, setCode, language = 'javascript' }) => {
       </div>
 
       {/* Styles */}
-  <style>{`
+      <style>{`
         .code-editor-container {
           background: var(--bg-dark);
           border-radius: var(--radius-xl);
@@ -128,6 +160,23 @@ const CodeEditor = ({ code, setCode, language = 'javascript' }) => {
           display: flex;
           align-items: center;
           justify-content: space-between;
+        }
+
+        .btn-download {
+          background: linear-gradient(90deg, #6366f1, #8b5cf6);
+          color: white;
+          border: none;
+          border-radius: 6px;
+          padding: 4px 10px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          box-shadow: 0 2px 10px rgba(99, 102, 241, 0.4);
+          transition: 0.2s ease;
+        }
+        .btn-download:hover {
+          opacity: 0.85;
+          transform: translateY(-1px);
         }
 
         .code-editor-body {
@@ -160,12 +209,8 @@ const CodeEditor = ({ code, setCode, language = 'javascript' }) => {
         }
 
         @keyframes pulse {
-          0%, 100% {
-            opacity: 1;
-          }
-          50% {
-            opacity: 0.5;
-          }
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
         }
 
         .flex { display: flex; }
@@ -173,6 +218,7 @@ const CodeEditor = ({ code, setCode, language = 'javascript' }) => {
         .justify-between { justify-content: space-between; }
         .gap-1 { gap: 0.25rem; }
         .gap-2 { gap: 0.5rem; }
+        .gap-3 { gap: 0.75rem; }
         .gap-4 { gap: 1rem; }
         .w-3 { width: 0.75rem; }
         .h-3 { height: 0.75rem; }

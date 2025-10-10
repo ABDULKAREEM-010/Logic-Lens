@@ -4,8 +4,6 @@ import { FaGithub } from "react-icons/fa";
 import { Link } from 'react-router-dom';
 import CodeEditor from '../components/CodeEditor';
 import ResultPanel from '../components/ResultPanel';
-import { supabase } from '../supabaseClient';
-import { API_ENDPOINTS } from '../config/api';
 
 const Editor = ({ code = '', setCode = () => {} }) => {
   const [filename, setFilename] = useState('');
@@ -21,82 +19,35 @@ const Editor = ({ code = '', setCode = () => {} }) => {
 
   const lastUploadPathsRef = useRef([]);
 
-  // ✅ Load GitHub-imported code if present (only once per session, user-specific)
+  // ✅ Load GitHub-imported code if present
   useEffect(() => {
-    const loadUserSpecificGitHubData = async () => {
+    const githubCode = localStorage.getItem('github_selected_code');
+    const githubFilename = localStorage.getItem('github_selected_filename');
+    if (githubCode) {
+      setCode(githubCode);
+      setFilename(githubFilename || '');
+    }
+    // If user came from GitHub folder/repo review, preload multi files and auto-analyze
+    const multiFilesRaw = localStorage.getItem('github_multi_files');
+    if (multiFilesRaw) {
       try {
-        // Get current authenticated user
-        const { data: { user }, error } = await supabase.auth.getUser();
-        if (error || !user) {
-          console.log('No authenticated user, starting with fresh editor');
-          setCode('');
-          setFilename('');
-          setMultiResults([]);
-          setError(null);
-          setRawBackendResponse(null);
-          return;
+        const parsed = JSON.parse(multiFilesRaw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // normalized structure expected by UI (temporarily with empty analysis)
+          const normalized = parsed.map(p => ({ file: p.path || p.name, code: p.code || '', analysis: { suggestions: [], geminiReview: { rawReview: 'Analyzing...', suggestions: [] } } }));
+          setMultiResults(normalized);
+          setFilename(normalized[0]?.file || '');
+          // clear the stored payload so repeated navigations don't re-add it
+          localStorage.removeItem('github_multi_files');
+          
+          // Auto-trigger enhanced multi-file analysis for GitHub imports
+          console.log('🔄 Auto-starting enhanced multi-file analysis for GitHub import...');
+          setTimeout(() => analyzeGithubMultiFiles(parsed), 500);
         }
-
-        // Load user-specific GitHub data
-        const githubCode = localStorage.getItem(`github_selected_code_${user.id}`);
-        const githubFilename = localStorage.getItem(`github_selected_filename_${user.id}`);
-        const multiFilesRaw = localStorage.getItem(`github_multi_files_${user.id}`);
-        
-        // Check if there's any GitHub integration data for this user
-        const hasGithubData = githubCode || multiFilesRaw;
-        
-        if (githubCode) {
-          setCode(githubCode);
-          setFilename(githubFilename || '');
-          // Clear the stored code so it doesn't persist on page refresh/reload
-          localStorage.removeItem(`github_selected_code_${user.id}`);
-          localStorage.removeItem(`github_selected_filename_${user.id}`);
-        } else if (!hasGithubData) {
-          // If no GitHub data for this user, ensure editor starts fresh
-          setCode('');
-          setFilename('');
-          setMultiResults([]);
-          setError(null);
-          setRawBackendResponse(null);
-        }
-        
-        // If user came from GitHub folder/repo review, preload multi files and auto-analyze
-        if (multiFilesRaw) {
-          try {
-            const parsed = JSON.parse(multiFilesRaw);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              // normalized structure expected by UI (temporarily with empty analysis)
-              const normalized = parsed.map(p => ({ file: p.path || p.name, code: p.code || '', analysis: { suggestions: [], geminiReview: { rawReview: 'Analyzing...', suggestions: [] } } }));
-              setMultiResults(normalized);
-              setFilename(normalized[0]?.file || '');
-              // clear the stored payload so repeated navigations don't re-add it
-              localStorage.removeItem(`github_multi_files_${user.id}`);
-              
-              // Auto-trigger enhanced multi-file analysis for GitHub imports
-              console.log('🔄 Auto-starting enhanced multi-file analysis for GitHub import...');
-              setTimeout(() => analyzeGithubMultiFiles(parsed), 500);
-            }
-          } catch (e) {
-            console.warn('Failed to parse github_multi_files', e);
-            // Clear invalid data and reset to fresh state
-            localStorage.removeItem(`github_multi_files_${user.id}`);
-            setCode('');
-            setFilename('');
-            setMultiResults([]);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading user GitHub data:', error);
-        // Fallback to fresh state
-        setCode('');
-        setFilename('');
-        setMultiResults([]);
-        setError(null);
-        setRawBackendResponse(null);
+      } catch (e) {
+        console.warn('Failed to parse github_multi_files', e);
       }
-    };
-
-    loadUserSpecificGitHubData();
+    }
   }, [setCode]);
 
   // ✅ Auto-sync code in editor with multiResults when only one file
@@ -135,7 +86,7 @@ const Editor = ({ code = '', setCode = () => {} }) => {
       console.log('🔄 Calling enhanced multi-file analysis endpoint...', { paths });
       setAnalysisProgress(`Analyzing ${parsedFiles.length} files with AI (this may take several minutes)...`);
       
-      const res = await axios.post(API_ENDPOINTS.ANALYZE_MULTI, formData, {
+      const res = await axios.post('http://localhost:5000/api/analyze/multi', formData, {
         timeout: 300000  // Increased to 5 minutes for large multi-file analysis
       });
 
@@ -197,6 +148,12 @@ const Editor = ({ code = '', setCode = () => {} }) => {
 
   // Multi-file editor functions
   const updateActiveFileCode = (newCode) => {
+    console.log('📝 Editor updateActiveFileCode called with:', { 
+      newCode: newCode.substring(0, 100) + '...', 
+      activeFileIndex, 
+      multiResultsLength: multiResults.length 
+    });
+    
     setMultiResults(prev => {
       const updated = [...prev];
       if (updated[activeFileIndex]) {
@@ -204,6 +161,12 @@ const Editor = ({ code = '', setCode = () => {} }) => {
       }
       return updated;
     });
+    
+    // Also update the single file code if we're in single file mode
+    if (multiResults.length === 1) {
+      console.log('📝 Editor - Also updating single file setCode');
+      setCode(newCode);
+    }
   };
 
   const switchToFile = (index) => {
@@ -229,7 +192,7 @@ const Editor = ({ code = '', setCode = () => {} }) => {
     
     try {
       // Use single-file analysis endpoint for faster response
-      const response = await axios.post(API_ENDPOINTS.ANALYZE, {
+      const response = await axios.post('http://localhost:5000/api/analyze', {
         code: fileToAnalyze.code,
         language: detectLanguage(fileToAnalyze.file)
       }, { timeout: 60000 });
@@ -279,7 +242,7 @@ const Editor = ({ code = '', setCode = () => {} }) => {
       formData.append('paths', JSON.stringify(paths));
       
       console.log('🔄 Calling enhanced multi-file analysis endpoint for re-analysis...', { paths });
-      const res = await axios.post(API_ENDPOINTS.ANALYZE_MULTI, formData, {
+      const res = await axios.post('http://localhost:5000/api/analyze/multi', formData, {
         timeout: 300000  // Increased to 5 minutes for large multi-file analysis
       });
 
@@ -339,7 +302,7 @@ const Editor = ({ code = '', setCode = () => {} }) => {
     setMultiResults([]);
 
     try {
-      const res = await axios.post(API_ENDPOINTS.ANALYZE, {
+      const res = await axios.post('http://localhost:5000/api/analyze', {
         language: analysisLanguage,
         code: codeToAnalyze
       }, { timeout: 60000 });
@@ -396,7 +359,7 @@ const Editor = ({ code = '', setCode = () => {} }) => {
       lastUploadPathsRef.current = paths;
       formData.append('paths', JSON.stringify(paths));
 
-      const res = await axios.post(API_ENDPOINTS.ANALYZE_MULTI, formData, {
+      const res = await axios.post('http://localhost:5000/api/analyze/multi', formData, {
         timeout: 120000
       });
 
@@ -949,7 +912,7 @@ const Editor = ({ code = '', setCode = () => {} }) => {
           display: flex;
           align-items: center;
           gap: 0.5rem;
-          color: rgba(255, 255, 255, 0.8);
+          color: rgba(237, 227, 227, 1);
           font-size: 0.875rem;
         }
 
@@ -1651,7 +1614,7 @@ const Editor = ({ code = '', setCode = () => {} }) => {
         }
 
         .editor-header {
-          background: rgba(255, 255, 255, 0.08);
+          background: rgba(0, 0, 0, 1);
           border-bottom: 2px solid rgba(255, 255, 255, 0.1);
           padding: 1.5rem;
           display: flex;

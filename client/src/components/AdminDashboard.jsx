@@ -11,9 +11,8 @@ import {
   Bar,
   ResponsiveContainer,
 } from "recharts";
-import { API_ENDPOINTS } from '../config/api';
 
-const COLORS = ["#667eea", "#764ba2", "#f093fb", "#f5576c", "#4facfe", "#00f2fe"];
+const COLORS = ["#60a5fa", "#a78bfa", "#f472b6", "#facc15", "#34d399", "#38bdf8"];
 
 function AdminDashboard() {
   const [stats, setStats] = useState(null);
@@ -24,23 +23,9 @@ function AdminDashboard() {
   const fetchStats = async () => {
     try {
       setRefreshing(true);
-      console.log('🔄 Fetching admin stats...');
-      
-      // Add cache-busting parameter to ensure fresh data
       const timestamp = Date.now();
-      const res = await axios.get(`${API_ENDPOINTS.STATS}?t=${timestamp}`);
+      const res = await axios.get(`http://localhost:5000/api/stats?t=${timestamp}`);
       const feedbacks = res.data.feedbacks || [];
-
-      console.log('📊 Received feedback data:', feedbacks.length, 'entries');
-      
-      // Log first few feedbacks to see user profile data
-      if (feedbacks.length > 0) {
-        console.log('👤 Sample feedback with user data:', {
-          user_id: feedbacks[0].user_id,
-          user_profile: feedbacks[0].user_profile,
-          suggestion_type: feedbacks[0].suggestion_type
-        });
-      }
 
       const errorTypes = {
         syntax: feedbacks.filter((f) =>
@@ -71,8 +56,6 @@ function AdminDashboard() {
         feedbacks,
         errorTypes,
       });
-
-      console.log('✅ Stats updated successfully');
     } catch (err) {
       console.error("❌ Failed to fetch stats:", err);
     } finally {
@@ -87,10 +70,34 @@ function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="container fade-in text-center py-20">
-        <h2 className="text-2xl font-bold mb-2">Loading Admin Dashboard...</h2>
-        <p className="text-gray">Fetching system statistics...</p>
-        <div className="loading-spinner mx-auto mt-6"></div>
+      <div
+        style={{
+          minHeight: "100vh",
+          background: "linear-gradient(135deg,#0f172a,#1e1b4b,#0f172a)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          color: "#fff",
+          fontFamily: "Poppins, sans-serif",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 10 }}>
+            Loading Admin Dashboard...
+          </div>
+          <div style={{ color: "#94a3b8" }}>Fetching system statistics...</div>
+          <div
+            style={{
+              margin: "20px auto",
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              borderTop: "3px solid #8b5cf6",
+              animation: "spin 1s linear infinite",
+            }}
+          />
+          <style>{`@keyframes spin {to{transform:rotate(360deg);}}`}</style>
+        </div>
       </div>
     );
   }
@@ -111,401 +118,327 @@ function AdminDashboard() {
     stats.total > 0 ? ((stats.accepted / stats.total) * 100).toFixed(1) : 0;
 
   return (
-    <div className="container fade-in">
-      {/* Header */}
-      <div className="text-center mb-10">
-        <h1 className="dashboard-title">🔧 Admin Dashboard</h1>
-        <p className="dashboard-subtitle font-bold">
-          System-wide analytics and feedback management
-        </p>
-        <button onClick={fetchStats} disabled={refreshing} className="btn-refresh">
-          {refreshing ? "🔄 Refreshing..." : "🔄 Refresh Data"}
-        </button>
-      </div>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg,#0f172a,#1e1b4b,#0f172a)",
+        color: "#fff",
+        padding: "40px 20px",
+        fontFamily: "Poppins, sans-serif",
+      }}
+    >
+      <div style={{ maxWidth: 1300, margin: "0 auto" }}>
+        {/* Header */}
+        <div style={{ textAlign: "center", marginBottom: 40 }}>
+          <h1
+            style={{
+              fontSize: "2.8rem",
+              fontWeight: 800,
+              background:
+                "linear-gradient(to right,#8b5cf6,#f472b6,#60a5fa)",
+              WebkitBackgroundClip: "text",
+              color: "transparent",
+              marginBottom: 10,
+            }}
+          >
+            🔧 Admin Dashboard
+          </h1>
+          <p style={{ color: "#cbd5e1", fontWeight: 500, fontSize: 16 }}>
+            System-wide analytics and feedback management
+          </p>
+          <button
+            onClick={fetchStats}
+            disabled={refreshing}
+            style={{
+              marginTop: 20,
+              padding: "10px 18px",
+              borderRadius: 10,
+              border: "none",
+              background:
+                "linear-gradient(90deg,#6366f1,#8b5cf6,#ec4899)",
+              color: "#fff",
+              fontWeight: 700,
+              cursor: refreshing ? "not-allowed" : "pointer",
+              opacity: refreshing ? 0.6 : 1,
+              transition: "0.2s",
+            }}
+          >
+            {refreshing ? "🔄 Refreshing..." : "🔄 Refresh Data"}
+          </button>
+        </div>
 
-      {/* Summary Cards */}
-      <div className="cards-grid">
-        {[
-          { icon: "📊", title: "Total Suggestions", value: stats.total },
-          { icon: "✅", title: "Accepted", value: stats.accepted },
-          { icon: "❌", title: "Rejected", value: stats.rejected },
-          { icon: "📈", title: "Accept Rate", value: `${acceptanceRate}%` },
-        ].map((c, i) => (
-          <div key={i} className="card summary-card">
-            <div className="card-body text-center">
-              <div className="card-icon">{c.icon}</div>
-              <h3 className="card-title">{c.title}</h3>
-              <p className="card-value">{c.value}</p>
+        {/* Summary Cards */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(250px,1fr))",
+            gap: 20,
+            marginBottom: 40,
+          }}
+        >
+          {[
+            { icon: "📊", title: "Total Suggestions", value: stats.total },
+            { icon: "✅", title: "Accepted", value: stats.accepted },
+            { icon: "❌", title: "Rejected", value: stats.rejected },
+            { icon: "📈", title: "Accept Rate", value: `${acceptanceRate}%` },
+          ].map((c, i) => (
+            <div
+              key={i}
+              style={{
+                background: "rgba(17,25,40,0.85)",
+                borderRadius: 20,
+                border: "1px solid rgba(148,163,184,0.15)",
+                boxShadow: "0 8px 30px rgba(0,0,0,0.4)",
+                padding: 24,
+                textAlign: "center",
+                transition: "transform 0.3s ease, box-shadow 0.3s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-6px) scale(1.03)";
+                e.currentTarget.style.boxShadow =
+                  "0 12px 36px rgba(0,0,0,0.6)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "none";
+                e.currentTarget.style.boxShadow =
+                  "0 8px 30px rgba(0,0,0,0.4)";
+              }}
+            >
+              <div style={{ fontSize: 32, marginBottom: 10 }}>{c.icon}</div>
+              <div style={{ fontWeight: 700, fontSize: 18 }}>{c.title}</div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: "#a78bfa" }}>
+                {c.value}
+              </div>
             </div>
+          ))}
+        </div>
+
+        {/* Charts */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit,minmax(360px,1fr))",
+            gap: 24,
+            marginBottom: 40,
+          }}
+        >
+          <div
+            style={{
+              background: "rgba(17,25,40,0.85)",
+              borderRadius: 20,
+              border: "1px solid rgba(148,163,184,0.15)",
+              padding: 24,
+            }}
+          >
+            <h3 style={{ fontWeight: 700, marginBottom: 10, color: "#cbd5e1" }}>
+              🥧 Accept vs Reject
+            </h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  label={({ name, value, percent }) =>
+                    `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
+                  }
+                >
+                  {pieData.map((entry, index) => (
+                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
-        ))}
-      </div>
 
-      {/* Charts */}
-      <div className="charts-grid">
-        <div className="card chart-card">
-          <h3 className="chart-title">🥧 Accept vs Reject</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={pieData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                outerRadius={100}
-                label={({ name, value, percent }) =>
-                  `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
-                }
-              >
-                {pieData.map((entry, index) => (
-                  <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
+          <div
+            style={{
+              background: "rgba(17,25,40,0.85)",
+              borderRadius: 20,
+              border: "1px solid rgba(148,163,184,0.15)",
+              padding: 24,
+            }}
+          >
+            <h3 style={{ fontWeight: 700, marginBottom: 10, color: "#cbd5e1" }}>
+              📊 Error Type Breakdown
+            </h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={barData}>
+                <XAxis dataKey="type" stroke="#94a3b8" />
+                <YAxis allowDecimals={false} stroke="#94a3b8" />
+                <Tooltip />
+                <Bar
+                  dataKey="count"
+                  fill="url(#barGradient)"
+                  radius={[6, 6, 0, 0]}
+                />
+                <defs>
+                  <linearGradient id="barGradient" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stopColor="#60a5fa" />
+                    <stop offset="100%" stopColor="#8b5cf6" />
+                  </linearGradient>
+                </defs>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        <div className="card chart-card">
-          <h3 className="chart-title">📊 Error Type Breakdown</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={barData}>
-              <XAxis dataKey="type" />
-              <YAxis allowDecimals={false} />
-              <Tooltip />
-              <Bar dataKey="count" fill="#3182ce" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      {/* Feedback Table */}
-      <div className="card feedback-card">
-        <div className="card-header">
-          <h3 className="chart-title">📋 All Feedback Records</h3>
-          <p className="text-muted">Complete system feedback history</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>User Name</th>
-                <th>User ID</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Comment</th>
-                <th>View Code</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.feedbacks.length > 0 ? (
-                stats.feedbacks.map((fb, i) => (
-                  <tr key={i}>
-                    <td>
-                      <div className="user-info">
-                        <div className="user-name">
-                          {fb.user_profile?.display_name || 'Unknown User'}
-                        </div>
-                        {fb.user_profile?.email && fb.user_profile?.email !== 'Unknown' && (
-                          <div className="user-email">
-                            {fb.user_profile.email}
-                          </div>
-                        )}
-                      </div>
+        {/* Feedback Table */}
+        <div
+          style={{
+            background: "rgba(17,25,40,0.85)",
+            borderRadius: 20,
+            border: "1px solid rgba(148,163,184,0.15)",
+            padding: 24,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
+          }}
+        >
+          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
+            📋 All Feedback Records
+          </h3>
+          <div style={{ overflowX: "auto" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                color: "#fff",
+              }}
+            >
+              <thead>
+                <tr style={{ background: "rgba(255,255,255,0.05)" }}>
+                  {["User", "User ID", "Type", "Status", "Comment", "View"].map(
+                    (h) => (
+                      <th
+                        key={h}
+                        style={{
+                          textAlign: "left",
+                          padding: "12px",
+                          color: "#94a3b8",
+                        }}
+                      >
+                        {h}
+                      </th>
+                    )
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {stats.feedbacks.map((fb, i) => (
+                  <tr
+                    key={i}
+                    style={{
+                      borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    }}
+                  >
+                    <td style={{ padding: "10px 12px" }}>
+                      {fb.user_profile?.display_name || "Unknown"}
                     </td>
-                    <td className="font-mono user-id">{fb.user_id?.substring(0, 8) || 'N/A'}</td>
-                    <td>
-                      <span className="suggestion-type">
-                        {fb.suggestion_type || "General"}
-                      </span>
+                    <td style={{ padding: "10px 12px", color: "#a5b4fc" }}>
+                      {fb.user_id?.substring(0, 8) || "N/A"}
                     </td>
-                    <td>
-                      <span className={`status-badge ${fb.decision}`}>
-                        {fb.decision === 'accepted' ? '✅ Accepted' : 
-                         fb.decision === 'rejected' ? '❌ Rejected' : 
-                         '⏳ Pending'}
-                      </span>
+                    <td style={{ padding: "10px 12px" }}>
+                      {fb.suggestion_type || "General"}
                     </td>
-                    <td className="comment-cell">
-                      {fb.comment ? (
-                        <div className="comment-preview" title={fb.comment}>
-                          {fb.comment.length > 50 ? `${fb.comment.substring(0, 50)}...` : fb.comment}
-                        </div>
-                      ) : (
-                        <span className="text-muted">-</span>
-                      )}
+                    <td style={{ padding: "10px 12px" }}>
+                      {fb.decision === "accepted"
+                        ? "✅ Accepted"
+                        : fb.decision === "rejected"
+                        ? "❌ Rejected"
+                        : "⏳ Pending"}
                     </td>
-                    <td>
+                    <td style={{ padding: "10px 12px" }}>
+                      {fb.comment || "-"}
+                    </td>
+                    <td style={{ padding: "10px 12px" }}>
                       <button
                         onClick={() => setSelectedFeedback(fb)}
-                        className="btn-view"
+                        style={{
+                          padding: "6px 10px",
+                          borderRadius: 8,
+                          border: "none",
+                          background:
+                            "linear-gradient(90deg,#6366f1,#8b5cf6)",
+                          color: "#fff",
+                          cursor: "pointer",
+                        }}
                       >
                         👁️ View
                       </button>
                     </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="6" className="text-center py-8 text-gray">
-                    No feedback data available
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Modal */}
-      {selectedFeedback && (
-        <div className="modal-overlay" onClick={() => setSelectedFeedback(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="text-lg font-semibold mb-2">
-                👁️ Code Review Details
-              </h3>
-              <div className="feedback-meta">
-                <div className="meta-row">
-                  <span className="meta-label">👤 User:</span>
-                  <span className="meta-value">
-                    {selectedFeedback.user_profile?.display_name || 'Unknown User'}
-                    {selectedFeedback.user_profile?.email && selectedFeedback.user_profile.email !== 'Unknown' && (
-                      <span className="meta-email"> ({selectedFeedback.user_profile.email})</span>
-                    )}
-                  </span>
-                </div>
-                <div className="meta-row">
-                  <span className="meta-label">🏷️ Type:</span>
-                  <span className="meta-value">{selectedFeedback.suggestion_type || 'General'}</span>
-                </div>
-                <div className="meta-row">
-                  <span className="meta-label">📊 Status:</span>
-                  <span className={`status-badge ${selectedFeedback.decision}`}>
-                    {selectedFeedback.decision === 'accepted' ? '✅ Accepted' : 
-                     selectedFeedback.decision === 'rejected' ? '❌ Rejected' : 
-                     '⏳ Pending'}
-                  </span>
-                </div>
-                {selectedFeedback.comment && (
-                  <div className="meta-row">
-                    <span className="meta-label">💬 Comment:</span>
-                    <span className="meta-value comment-text">{selectedFeedback.comment}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="code-section">
-              <h4 className="code-title">📝 Code:</h4>
-              <pre className="code-block">{selectedFeedback.code || "No code available"}</pre>
-            </div>
-            <button onClick={() => setSelectedFeedback(null)} className="btn-close">
-              Close
-            </button>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
-      )}
 
-  <style>{`
-        .summary-card {
-          background: #fff;
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          padding: 1.5rem;
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .summary-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-        }
-        .card-icon {
-          font-size: 2rem;
-          margin-bottom: 0.5rem;
-        }
-        .card-value {
-          font-size: 1.5rem;
-          font-weight: bold;
-        }
-        .table {
-          width: 100%;
-          border-collapse: collapse;
-          border: 1px solid #e2e8f0;
-          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
-          border-radius: 8px;
-          overflow: hidden;
-        }
-        .table th,
-        .table td {
-          padding: 12px;
-          border-bottom: 1px solid #e2e8f0;
-        }
-        .table th {
-          background: #f8fafc;
-          text-align: left;
-          font-weight: 600;
-        }
-        .table tr:hover {
-          background: #f1f5f9;
-        }
-        .btn-view {
-          background: #3182ce;
-          color: white;
-          border: none;
-          padding: 4px 10px;
-          border-radius: 6px;
-          cursor: pointer;
-        }
-        .btn-view:hover {
-          background: #2b6cb0;
-        }
-        .modal-overlay {
-          position: fixed;
-          top: 0; left: 0; right: 0; bottom: 0;
-          background: rgba(0, 0, 0, 0.6);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-        }
-        .modal-content {
-          background: white;
-          padding: 1.5rem;
-          border-radius: 8px;
-          width: 80%;
-          max-width: 700px;
-          max-height: 80vh;
-          overflow-y: auto;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        }
-        .code-block {
-          background: #f7fafc;
-          padding: 1rem;
-          border-radius: 6px;
-          font-family: monospace;
-          white-space: pre-wrap;
-          overflow-x: auto;
-        }
-        .btn-close {
-          background: #e53e3e;
-          color: #fff;
-          padding: 0.5rem 1rem;
-          border: none;
-          border-radius: 6px;
-          margin-top: 1rem;
-          cursor: pointer;
-        }
-        .user-info {
-          min-width: 160px;
-        }
-        .user-name {
-          font-weight: 600;
-          color: #2d3748;
-          font-size: 14px;
-        }
-        .user-email {
-          font-size: 12px;
-          color: #718096;
-          margin-top: 2px;
-        }
-        .user-id {
-          font-family: 'Courier New', monospace;
-          font-size: 12px;
-          color: #4a5568;
-          background: #f7fafc;
-          padding: 4px 8px;
-          border-radius: 4px;
-          display: inline-block;
-        }
-        .suggestion-type {
-          background: #e6fffa;
-          color: #065f46;
-          padding: 4px 8px;
-          border-radius: 12px;
-          font-size: 12px;
-          font-weight: 500;
-          text-transform: capitalize;
-        }
-        .status-badge {
-          padding: 4px 8px;
-          border-radius: 12px;
-          font-size: 12px;
-          font-weight: 500;
-        }
-        .status-badge.accepted {
-          background: #d1fae5;
-          color: #065f46;
-        }
-        .status-badge.rejected {
-          background: #fee2e2;
-          color: #991b1b;
-        }
-        .status-badge.pending {
-          background: #fef3c7;
-          color: #92400e;
-        }
-        .comment-cell {
-          max-width: 200px;
-        }
-        .comment-preview {
-          font-size: 13px;
-          line-height: 1.4;
-          color: #4a5568;
-        }
-        .text-muted {
-          color: #a0aec0;
-          font-style: italic;
-        }
-        .modal-header {
-          border-bottom: 1px solid #e2e8f0;
-          padding-bottom: 1rem;
-          margin-bottom: 1rem;
-        }
-        .feedback-meta {
-          background: #f8fafc;
-          padding: 1rem;
-          border-radius: 8px;
-          margin-top: 0.5rem;
-        }
-        .meta-row {
-          display: flex;
-          margin-bottom: 0.5rem;
-          align-items: flex-start;
-        }
-        .meta-row:last-child {
-          margin-bottom: 0;
-        }
-        .meta-label {
-          font-weight: 600;
-          color: #4a5568;
-          min-width: 80px;
-          margin-right: 0.5rem;
-        }
-        .meta-value {
-          color: #2d3748;
-          flex: 1;
-        }
-        .meta-email {
-          color: #718096;
-          font-size: 0.9em;
-        }
-        .comment-text {
-          background: white;
-          padding: 0.5rem;
-          border-radius: 4px;
-          border: 1px solid #e2e8f0;
-          white-space: pre-wrap;
-          line-height: 1.5;
-        }
-        .code-section {
-          margin-top: 1rem;
-        }
-        .code-title {
-          font-weight: 600;
-          color: #4a5568;
-          margin-bottom: 0.5rem;
-        }
-      `}</style>
+        {/* Modal */}
+        {selectedFeedback && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.8)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              zIndex: 1000,
+            }}
+            onClick={() => setSelectedFeedback(null)}
+          >
+            <div
+              style={{
+                background: "rgba(17,25,40,0.98)",
+                borderRadius: 14,
+                padding: 24,
+                width: "min(90%,700px)",
+                maxHeight: "80vh",
+                overflowY: "auto",
+                border: "1px solid rgba(148,163,184,0.15)",
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 style={{ color: "#a78bfa", fontSize: 18, marginBottom: 8 }}>
+                👁️ Code Review Details
+              </h3>
+              <p style={{ color: "#94a3b8", marginBottom: 8 }}>
+                🧑‍💻{" "}
+                {selectedFeedback.user_profile?.display_name || "Unknown User"}
+              </p>
+              <pre
+                style={{
+                  background: "rgba(15,23,42,0.7)",
+                  padding: 14,
+                  borderRadius: 10,
+                  color: "#cbd5e1",
+                  overflowX: "auto",
+                }}
+              >
+                {selectedFeedback.code || "No code available"}
+              </pre>
+              <button
+                onClick={() => setSelectedFeedback(null)}
+                style={{
+                  marginTop: 16,
+                  padding: "8px 14px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "linear-gradient(90deg,#ef4444,#fb7185)",
+                  color: "#fff",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
