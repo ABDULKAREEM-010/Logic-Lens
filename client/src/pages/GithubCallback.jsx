@@ -48,7 +48,7 @@ const GithubCallback = () => {
     setAlreadyProcessing(true);
 
     // Send code to backend to exchange for access token
-    fetch('http://localhost:5000/api/github/callback', {
+    fetch(`${import.meta.env.VITE_API_BASE_URL}/api/github/callback`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code })

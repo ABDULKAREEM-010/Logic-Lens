@@ -34,7 +34,7 @@ router.post('/', verifyUserToken, async (req, res) => {
 
     if (memberError) throw memberError;
 
-    const join_link = `http://localhost:5173/join/${team.team_id}`;
+    const join_link = `${process.env.CLIENT_URL || 'http://localhost:5173'}/join/${team.team_id}`;
     res.json({ team_id: team.team_id, join_link });
   } catch (error) {
     console.error('Error creating team:', error);
