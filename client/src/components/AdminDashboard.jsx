@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+
 import {
   PieChart,
   Pie,
@@ -20,6 +21,7 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // ✅ Fetch system stats
   const fetchStats = async () => {
     try {
       setRefreshing(true);
@@ -64,8 +66,20 @@ function AdminDashboard() {
     }
   };
 
+  // ✅ Initial load + auto-update listener
   useEffect(() => {
     fetchStats();
+
+    // 🔁 Listen for any feedback updates (from other pages)
+    const handleStorageChange = (e) => {
+      if (e.key === "feedback_updated") {
+        console.log("🔁 Detected feedback update, refreshing admin dashboard...");
+        fetchStats();
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
   if (loading) {
