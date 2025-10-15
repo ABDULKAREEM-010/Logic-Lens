@@ -2,11 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../utils/supabaseClient');
 
-// 🧠 Debug endpoint to test user fetching
+// Debug endpoint to test user fetching
 router.get('/debug-users', async (req, res) => {
   try {
     console.log('🔍 Testing user fetching...');
-    
+
+    // Get some user IDs from feedback table
     const { data: feedbacks, error: feedbackError } = await supabase
       .from('feedback')
       .select('user_id')
@@ -23,17 +24,20 @@ router.get('/debug-users', async (req, res) => {
       return res.json({ message: 'No user IDs found in feedback table' });
     }
 
+    // Try to fetch users via Admin API
     const results = {};
-    for (const userId of userIds.slice(0, 3)) {
+    for (const userId of userIds.slice(0, 3)) { // Test first 3
       try {
         const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
         results[userId] = {
           success: !userError,
           error: userError?.message,
-          user: userData?.user ? {
-            email: userData.user.email,
-            metadata: userData.user.user_metadata
-          } : null
+          user: userData?.user
+            ? {
+                email: userData.user.email,
+                metadata: userData.user.user_metadata
+              }
+            : null
         };
       } catch (err) {
         results[userId] = { success: false, error: err.message };
@@ -46,66 +50,63 @@ router.get('/debug-users', async (req, res) => {
   }
 });
 
-// ✅ Main Admin Dashboard Stats API
+// GET /api/admin/stats
 router.get('/', async (req, res) => {
   try {
-console.log('🔍 Starting admin stats fetch...');
+    console.log('🔍 Starting admin stats fetch...');
 
-// 🚀 Fetch latest feedbacks directly from Supabase
-const { data, error } = await supabase
-  .from('feedback')
-  .select('*')
-  .order('created_at', { ascending: false })
-  .limit(1000); // removed .neq('id', null)
+    const { data, error } = await supabase
+      .from('feedback')
+      .select('*');
 
-if (error) throw error;
+    if (error) throw error;
 
-const feedbacks = data || [];
-console.log(`📊 Found ${feedbacks.length} feedback entries (fresh fetch)`);
+    const feedbacks = data || [];
+    console.log(`📊 Found ${feedbacks.length} feedback entries`);
 
-// Disable all caching
-res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-res.setHeader('Pragma', 'no-cache');
-res.setHeader('Expires', '0');
-res.setHeader('Surrogate-Control', 'no-store');
-
-    // 🧮 Analyze user IDs
+    // Analyze user IDs
     const allUserIds = feedbacks.map(f => f.user_id);
     const nullUserIds = allUserIds.filter(id => !id);
     const validUserIds = [...new Set(allUserIds.filter(Boolean))];
-    
+
     console.log('📊 User ID analysis:');
     console.log(`- Total feedback entries: ${feedbacks.length}`);
     console.log(`- Entries with null user_id: ${nullUserIds.length}`);
     console.log(`- Unique valid user IDs: ${validUserIds.length}`);
+    console.log('- Valid user IDs:', validUserIds);
 
-    // 🧠 Fetch user profiles via Supabase Admin API
+    // Fetch user profiles using Supabase Auth Admin API
     const userProfiles = {};
-    
     if (validUserIds.length > 0) {
       console.log('🔍 Fetching user profiles for:', validUserIds);
-      
+
       for (const userId of validUserIds) {
         try {
+          console.log(`🔍 Fetching user data for: ${userId}`);
           const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
-          
+
           if (!userError && userData?.user) {
             const user = userData.user;
-            const displayName = user.user_metadata?.full_name || 
-                                user.user_metadata?.name || 
-                                user.user_metadata?.username || 
-                                user.user_metadata?.user_name ||
-                                user.email?.split('@')[0] ||
-                                `User-${userId.substring(0, 8)}`;
-                                
+            const displayName =
+              user.user_metadata?.full_name ||
+              user.user_metadata?.name ||
+              user.user_metadata?.username ||
+              user.user_metadata?.user_name ||
+              user.email?.split('@')[0] ||
+              `User-${userId.substring(0, 8)}`;
+
             userProfiles[userId] = {
               email: user.email || 'No email',
               full_name: user.user_metadata?.full_name || user.user_metadata?.name,
               username: user.user_metadata?.username || user.user_metadata?.user_name,
               display_name: displayName
             };
-            
-            console.log(`✅ Fetched user ${userId}:`, { email: user.email, display_name: displayName });
+
+            console.log(`✅ Successfully fetched user ${userId}:`, {
+              email: user.email,
+              display_name: displayName,
+              metadata: user.user_metadata
+            });
           } else {
             console.log(`❌ Failed to fetch user ${userId}:`, userError?.message);
             userProfiles[userId] = {
@@ -127,18 +128,17 @@ res.setHeader('Surrogate-Control', 'no-store');
       }
 
       console.log(`✅ Final user profiles created: ${Object.keys(userProfiles).length}`);
+      Object.entries(userProfiles).forEach(([userId, profile]) => {
+        console.log(`👤 ${userId}: ${profile.display_name} (${profile.email})`);
+      });
     }
 
-    // 🧩 Normalize and attach user info
+    // Normalize values and add user information
     const normalized = feedbacks.map(f => {
       let userProfile;
-      
+
       if (!f.user_id) {
-        userProfile = {
-          email: 'System Generated',
-          display_name: 'System User',
-          username: 'system'
-        };
+        userProfile = { email: 'System Generated', display_name: 'System User', username: 'system' };
       } else if (userProfiles[f.user_id]) {
         userProfile = userProfiles[f.user_id];
       } else {
@@ -157,7 +157,6 @@ res.setHeader('Surrogate-Control', 'no-store');
       };
     });
 
-    // 📊 Compute overall stats
     const stats = {
       total: normalized.length,
       accepted: normalized.filter(f => f.decision === 'accepted').length,
@@ -166,8 +165,8 @@ res.setHeader('Surrogate-Control', 'no-store');
         syntax: normalized.filter(f => f.suggestion_type === 'syntax').length,
         semantic: normalized.filter(f => f.suggestion_type === 'semantic').length,
         logical: normalized.filter(f => f.suggestion_type === 'logical').length,
-        others: normalized.filter(f =>
-          !['syntax', 'semantic', 'logical'].includes(f.suggestion_type)
+        others: normalized.filter(
+          f => !['syntax', 'semantic', 'logical'].includes(f.suggestion_type)
         ).length
       },
       feedbacks: normalized
@@ -175,24 +174,7 @@ res.setHeader('Surrogate-Control', 'no-store');
 
     res.json(stats);
   } catch (err) {
-    console.error('💥 Error in /api/admin/stats:', err.message);
     res.status(500).json({ error: err.message || 'Unknown error occurred' });
-  }
-});
-
-// ✅ Optional: Force refresh route for manual test
-router.get('/force-refresh', async (req, res) => {
-  try {
-    const timestamp = Date.now();
-    console.log('🔁 Force-refreshing stats at', timestamp);
-    const { data, error } = await supabase
-      .from('feedback')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    res.json({ refreshedAt: timestamp, feedbacks: data });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
 });
 
