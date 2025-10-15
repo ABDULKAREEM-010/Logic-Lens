@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
-
 import {
   PieChart,
   Pie,
@@ -21,12 +20,11 @@ function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // ✅ Fetch system stats
   const fetchStats = async () => {
     try {
       setRefreshing(true);
       const timestamp = Date.now();
-      const res = await axios.get(`${import.meta.env.VITE_API_BASE_URL}/api/stats?t=${timestamp}`);
+      const res = await axios.get(`http://localhost:5000/api/stats?t=${timestamp}`);
       const feedbacks = res.data.feedbacks || [];
 
       const errorTypes = {
@@ -66,20 +64,8 @@ function AdminDashboard() {
     }
   };
 
-  // ✅ Initial load + auto-update listener
   useEffect(() => {
     fetchStats();
-
-    // 🔁 Listen for any feedback updates (from other pages)
-    const handleStorageChange = (e) => {
-      if (e.key === "feedback_updated") {
-        console.log("🔁 Detected feedback update, refreshing admin dashboard...");
-        fetchStats();
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
   if (loading) {
@@ -168,8 +154,7 @@ function AdminDashboard() {
               padding: "10px 18px",
               borderRadius: 10,
               border: "none",
-              background:
-                "linear-gradient(90deg,#6366f1,#8b5cf6,#ec4899)",
+              background: "linear-gradient(90deg,#6366f1,#8b5cf6,#ec4899)",
               color: "#fff",
               fontWeight: 700,
               cursor: refreshing ? "not-allowed" : "pointer",
@@ -220,7 +205,9 @@ function AdminDashboard() {
             >
               <div style={{ fontSize: 32, marginBottom: 10 }}>{c.icon}</div>
               <div style={{ fontWeight: 700, fontSize: 18 }}>{c.title}</div>
-              <div style={{ fontSize: 26, fontWeight: 800, color: "#a78bfa" }}>
+              <div
+                style={{ fontSize: 26, fontWeight: 800, color: "#a78bfa" }}
+              >
                 {c.value}
               </div>
             </div>
@@ -261,7 +248,10 @@ function AdminDashboard() {
                   }
                 >
                   {pieData.map((entry, index) => (
-                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                    <Cell
+                      key={index}
+                      fill={COLORS[index % COLORS.length]}
+                    />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -285,11 +275,7 @@ function AdminDashboard() {
                 <XAxis dataKey="type" stroke="#94a3b8" />
                 <YAxis allowDecimals={false} stroke="#94a3b8" />
                 <Tooltip />
-                <Bar
-                  dataKey="count"
-                  fill="url(#barGradient)"
-                  radius={[6, 6, 0, 0]}
-                />
+                <Bar dataKey="count" fill="url(#barGradient)" radius={[6, 6, 0, 0]} />
                 <defs>
                   <linearGradient id="barGradient" x1="0" y1="0" x2="1" y2="1">
                     <stop offset="0%" stopColor="#60a5fa" />
@@ -316,11 +302,7 @@ function AdminDashboard() {
           </h3>
           <div style={{ overflowX: "auto" }}>
             <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                color: "#fff",
-              }}
+              style={{ width: "100%", borderCollapse: "collapse", color: "#fff" }}
             >
               <thead>
                 <tr style={{ background: "rgba(255,255,255,0.05)" }}>
@@ -374,8 +356,7 @@ function AdminDashboard() {
                           padding: "6px 10px",
                           borderRadius: 8,
                           border: "none",
-                          background:
-                            "linear-gradient(90deg,#6366f1,#8b5cf6)",
+                          background: "linear-gradient(90deg,#6366f1,#8b5cf6)",
                           color: "#fff",
                           cursor: "pointer",
                         }}
@@ -416,12 +397,13 @@ function AdminDashboard() {
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 style={{ color: "#a78bfa", fontSize: 18, marginBottom: 8 }}>
+              <h3
+                style={{ color: "#a78bfa", fontSize: 18, marginBottom: 8 }}
+              >
                 👁️ Code Review Details
               </h3>
               <p style={{ color: "#94a3b8", marginBottom: 8 }}>
-                🧑‍💻{" "}
-                {selectedFeedback.user_profile?.display_name || "Unknown User"}
+                🧑‍💻 {selectedFeedback.user_profile?.display_name || "Unknown User"}
               </p>
               <pre
                 style={{
