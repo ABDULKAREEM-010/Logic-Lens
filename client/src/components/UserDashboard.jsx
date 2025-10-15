@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import {
   PieChart,
   Pie,
@@ -19,37 +18,47 @@ function UserDashboard() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedFeedback, setSelectedFeedback] = useState(null);
   const [user, setUser] = useState(null);
+  const [selectedFeedback, setSelectedFeedback] = useState(null);
 
-  // ✅ Fetch logged-in user
   useEffect(() => {
-    const getUser = async () => {
+    const fetchUser = async () => {
       const { data, error } = await supabase.auth.getUser();
       if (error) console.error("Error getting user:", error.message);
       setUser(data.user);
     };
-    getUser();
+    fetchUser();
   }, []);
 
-  // ✅ Fetch feedback data from backend (like admin)
   const fetchStats = async () => {
     if (!user) return;
+
     try {
       setRefreshing(true);
-      const timestamp = Date.now();
+      const { data: feedbacks, error } = await supabase
+        .from("feedback")
+        .select("*")
+        .eq("user_id", user.id);
 
-      // Use backend endpoint for consistent data mapping
-      const res = await axios.get(`http://localhost:5000/api/stats?t=${timestamp}`);
-      const allFeedbacks = res.data.feedbacks || [];
+      if (error) {
+        console.error("Error fetching user feedback:", error.message);
+        return;
+      }
 
-      // Filter only this user's feedbacks
-      const feedbacks = allFeedbacks.filter((f) => f.user_id === user.id);
+      const total = feedbacks.length;
+      const accepted = feedbacks.filter((f) => f.decision === "accepted").length;
+      const rejected = feedbacks.filter((f) => f.decision === "rejected").length;
 
       const errorTypes = {
-        syntax: feedbacks.filter((f) => f.suggestion_type?.includes("syntax")).length,
-        semantic: feedbacks.filter((f) => f.suggestion_type?.includes("semantic")).length,
-        logical: feedbacks.filter((f) => f.suggestion_type?.includes("logic")).length,
+        syntax: feedbacks.filter((f) =>
+          f.suggestion_type?.toLowerCase().includes("syntax")
+        ).length,
+        semantic: feedbacks.filter((f) =>
+          f.suggestion_type?.toLowerCase().includes("semantic")
+        ).length,
+        logical: feedbacks.filter((f) =>
+          f.suggestion_type?.toLowerCase().includes("logic")
+        ).length,
         nonCritical: feedbacks.filter((f) => {
           const type = f.suggestion_type?.toLowerCase() || "";
           return (
@@ -62,22 +71,15 @@ function UserDashboard() {
         }).length,
       };
 
-      setStats({
-        total: feedbacks.length,
-        accepted: feedbacks.filter((f) => f.decision === "accepted").length,
-        rejected: feedbacks.filter((f) => f.decision === "rejected").length,
-        feedbacks,
-        errorTypes,
-      });
+      setStats({ total, accepted, rejected, feedbacks, errorTypes });
     } catch (err) {
-      console.error("Failed to fetch user dashboard data:", err.message);
+      console.error("Failed to fetch user stats:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  // ✅ Fetch on load & user change
   useEffect(() => {
     if (user) fetchStats();
   }, [user]);
@@ -96,10 +98,12 @@ function UserDashboard() {
         }}
       >
         <div style={{ textAlign: "center" }}>
-          <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 10 }}>
+          <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 10 }}>
             Loading User Dashboard...
-          </h2>
-          <p style={{ color: "#94a3b8" }}>Fetching your personal analytics...</p>
+          </div>
+          <div style={{ color: "#94a3b8" }}>
+            Fetching your personal analytics...
+          </div>
           <div
             style={{
               margin: "20px auto",
@@ -259,7 +263,14 @@ function UserDashboard() {
               padding: 24,
             }}
           >
-            <h3 style={{ fontWeight: 700, color: "#cbd5e1", marginBottom: 10 }}>
+            <h3
+              style={{
+                fontWeight: 700,
+                fontSize: 18,
+                marginBottom: 10,
+                color: "#cbd5e1",
+              }}
+            >
               🥧 Accept vs Reject
             </h3>
             <ResponsiveContainer width="100%" height={280}>
@@ -276,7 +287,10 @@ function UserDashboard() {
                   }
                 >
                   {pieData.map((entry, index) => (
-                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
+                    <Cell
+                      key={index}
+                      fill={COLORS[index % COLORS.length]}
+                    />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -292,7 +306,14 @@ function UserDashboard() {
               padding: 24,
             }}
           >
-            <h3 style={{ fontWeight: 700, color: "#cbd5e1", marginBottom: 10 }}>
+            <h3
+              style={{
+                fontWeight: 700,
+                fontSize: 18,
+                marginBottom: 10,
+                color: "#cbd5e1",
+              }}
+            >
               📊 Error Type Breakdown
             </h3>
             <ResponsiveContainer width="100%" height={280}>
@@ -326,7 +347,14 @@ function UserDashboard() {
             boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
           }}
         >
-          <h3 style={{ fontSize: 18, fontWeight: 700, color: "#cbd5e1" }}>
+          <h3
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              marginBottom: 10,
+              color: "#cbd5e1",
+            }}
+          >
             📋 Your Feedback Records
           </h3>
           <div style={{ overflowX: "auto" }}>
@@ -334,18 +362,20 @@ function UserDashboard() {
               style={{
                 width: "100%",
                 borderCollapse: "collapse",
+                borderSpacing: 0,
                 color: "#fff",
               }}
             >
               <thead>
                 <tr style={{ background: "rgba(255,255,255,0.05)" }}>
-                  {["Type", "Status", "Comment", "View"].map((h) => (
+                  {["Type", "Status", "Comment", "View Code"].map((h) => (
                     <th
                       key={h}
                       style={{
                         textAlign: "left",
                         padding: "12px",
                         color: "#94a3b8",
+                        fontWeight: 700,
                       }}
                     >
                       {h}
@@ -354,50 +384,68 @@ function UserDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {stats.feedbacks.map((fb, i) => (
-                  <tr
-                    key={i}
-                    style={{
-                      borderBottom: "1px solid rgba(255,255,255,0.05)",
-                    }}
-                  >
-                    <td style={{ padding: "10px 12px" }}>
-                      {fb.suggestion_type || "General"}
-                    </td>
-                    <td style={{ padding: "10px 12px" }}>
-                      {fb.decision === "accepted"
-                        ? "✅ Accepted"
-                        : fb.decision === "rejected"
-                        ? "❌ Rejected"
-                        : "⏳ Pending"}
-                    </td>
-                    <td style={{ padding: "10px 12px" }}>
-                      {fb.comment || "-"}
-                    </td>
-                    <td style={{ padding: "10px 12px" }}>
-                      <button
-                        onClick={() => setSelectedFeedback(fb)}
-                        style={{
-                          padding: "6px 10px",
-                          borderRadius: 8,
-                          border: "none",
-                          background:
-                            "linear-gradient(90deg,#6366f1,#8b5cf6)",
-                          color: "#fff",
-                          cursor: "pointer",
-                        }}
-                      >
-                        👁️ View
-                      </button>
+                {stats.feedbacks.length > 0 ? (
+                  stats.feedbacks.map((fb, i) => (
+                    <tr
+                      key={i}
+                      style={{
+                        borderBottom: "1px solid rgba(255,255,255,0.05)",
+                        transition: "background 0.2s",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background =
+                          "rgba(148,163,184,0.05)")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
+                    >
+                      <td style={{ padding: "10px 12px" }}>
+                        {fb.suggestion_type || "General"}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>{fb.decision}</td>
+                      <td style={{ padding: "10px 12px" }}>
+                        {fb.comment || "-"}
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <button
+                          onClick={() => setSelectedFeedback(fb)}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: 8,
+                            border: "none",
+                            background:
+                              "linear-gradient(90deg,#6366f1,#8b5cf6)",
+                            color: "#fff",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                          }}
+                        >
+                          👁️ View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan="4"
+                      style={{
+                        textAlign: "center",
+                        padding: 20,
+                        color: "#94a3b8",
+                      }}
+                    >
+                      No feedback data available
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* Modal */}
+        {/* Modal for Viewing Code */}
         {selectedFeedback && (
           <div
             style={{
@@ -407,32 +455,41 @@ function UserDashboard() {
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
-              zIndex: 1000,
+              zIndex: 999,
             }}
             onClick={() => setSelectedFeedback(null)}
           >
             <div
               style={{
                 background: "rgba(17,25,40,0.98)",
-                borderRadius: 14,
                 padding: 24,
+                borderRadius: 14,
                 width: "min(90%,700px)",
                 maxHeight: "80vh",
                 overflowY: "auto",
                 border: "1px solid rgba(148,163,184,0.15)",
+                boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 style={{ color: "#a78bfa", fontSize: 18, marginBottom: 8 }}>
-                👁️ Code Review Details
+              <h3
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  marginBottom: 10,
+                  color: "#a78bfa",
+                }}
+              >
+                👁️ Code Review ({selectedFeedback.suggestion_type})
               </h3>
               <pre
                 style={{
                   background: "rgba(15,23,42,0.7)",
                   padding: 14,
                   borderRadius: 10,
-                  color: "#cbd5e1",
                   overflowX: "auto",
+                  color: "#cbd5e1",
+                  fontFamily: "monospace",
                 }}
               >
                 {selectedFeedback.code || "No code available"}
