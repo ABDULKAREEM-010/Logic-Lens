@@ -20,5 +20,5 @@ app.use("/api/analyze", analyzeRoute);
 app.use("/api/feedback", feedbackRoute);
 app.use("/api/stats", dashboardStats);
 
-const PORT = 5000;
+const PORT = process.env.PORT ;
 app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));

@@ -49,7 +49,7 @@ function AdminDashboard() {
     try {
       setRefreshing(true);
       const timestamp = Date.now();
-      const res = await axios.get(`http://localhost:5000/api/stats?t=${timestamp}`);
+      const res = await axios.get(`${import.meta.env.VITE_BACKEND_URL}/api/stats?t=${timestamp}`);
       const feedbacks = res.data.feedbacks || [];
 
       const errorTypes = {

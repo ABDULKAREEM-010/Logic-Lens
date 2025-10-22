@@ -13,7 +13,7 @@ const ErrorStatsDashboard = () => {
   const fetchData = async () => {
     try {
       setRefreshing(true);
-      const res = await fetch('http://localhost:5000/api/feedback/all');
+      const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/feedback/all`);
       const data = await res.json();
       const grouped = {};
 

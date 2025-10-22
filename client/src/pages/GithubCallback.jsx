@@ -63,7 +63,7 @@ const GithubCallback = () => {
     // Send code to backend to exchange for access token
     const apiUrl = process.env.NODE_ENV === 'production'
       ? '/api/github/callback'
-      : 'http://localhost:5000/api/github/callback';
+      : `${import.meta.env.VITE_BACKEND_URL}/api/github/callback`;
       
     fetch(apiUrl, {
       method: 'POST',
@@ -277,7 +277,7 @@ const GithubCallback = () => {
                 <button
                   onClick={async () => {
                     try {
-                      const response = await fetch('http://localhost:5000/api/teams/leave', {
+                      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/teams/leave`, {
                         method: 'POST',
                         headers: {
                           'Content-Type': 'application/json',
@@ -496,11 +496,11 @@ const GithubCallback = () => {
               <div className="auth-actions">
                 <button
                   onClick={() => {
-                    const clientId = 'Ov23liJ5YLg99qNXGHyu';
+                    const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
                     // Use the actual deployment URL or localhost for development
                     const redirectUri = process.env.NODE_ENV === 'production' 
                       ? `${window.location.origin}/github-callback`
-                      : 'http://localhost:5173/github-callback';
+                      : `${import.meta.env.VITE_FRONTEND_URL}/github-callback`;
                     const scope = 'repo user';
                     const state = Math.random().toString(36).substring(7); // Add state parameter for security
                     // Store state in sessionStorage to verify when we return

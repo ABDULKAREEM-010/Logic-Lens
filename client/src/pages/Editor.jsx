@@ -85,8 +85,8 @@ const Editor = ({ code = '', setCode = () => {} }) => {
       
       console.log('🔄 Calling enhanced multi-file analysis endpoint...', { paths });
       setAnalysisProgress(`Analyzing ${parsedFiles.length} files with AI (this may take several minutes)...`);
-      
-      const res = await axios.post('http://localhost:5000/api/analyze/multi', formData, {
+
+      const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/analyze/multi`, formData, {
         timeout: 300000  // Increased to 5 minutes for large multi-file analysis
       });
 
@@ -192,7 +192,7 @@ const Editor = ({ code = '', setCode = () => {} }) => {
     
     try {
       // Use single-file analysis endpoint for faster response
-      const response = await axios.post('http://localhost:5000/api/analyze', {
+      const response = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/analyze`, {
         code: fileToAnalyze.code,
         language: detectLanguage(fileToAnalyze.file)
       }, { timeout: 60000 });
@@ -242,7 +242,7 @@ const Editor = ({ code = '', setCode = () => {} }) => {
       formData.append('paths', JSON.stringify(paths));
       
       console.log('🔄 Calling enhanced multi-file analysis endpoint for re-analysis...', { paths });
-      const res = await axios.post('http://localhost:5000/api/analyze/multi', formData, {
+      const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/analyze/multi`, formData, {
         timeout: 300000  // Increased to 5 minutes for large multi-file analysis
       });
 
@@ -302,7 +302,7 @@ const Editor = ({ code = '', setCode = () => {} }) => {
     setMultiResults([]);
 
     try {
-      const res = await axios.post('http://localhost:5000/api/analyze', {
+      const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/analyze`, {
         language: analysisLanguage,
         code: codeToAnalyze
       }, { timeout: 60000 });
@@ -359,7 +359,7 @@ const Editor = ({ code = '', setCode = () => {} }) => {
       lastUploadPathsRef.current = paths;
       formData.append('paths', JSON.stringify(paths));
 
-      const res = await axios.post('http://localhost:5000/api/analyze/multi', formData, {
+      const res = await axios.post(`${import.meta.env.VITE_BACKEND_URL}/api/analyze/multi`, formData, {
         timeout: 120000
       });
 
