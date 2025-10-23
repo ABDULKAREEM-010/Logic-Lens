@@ -61,9 +61,9 @@ const GithubCallback = () => {
     setAlreadyProcessing(true);
 
     // Send code to backend to exchange for access token
-    const apiUrl = process.env.NODE_ENV === 'production'
-      ? '/api/github/callback'
-      : `${import.meta.env.VITE_BACKEND_URL}/api/github/callback`;
+    const apiUrl = import.meta.env.VITE_BACKEND_URL 
+      ? `${import.meta.env.VITE_BACKEND_URL}/api/github/callback`
+      : 'http://localhost:5000/api/github/callback';
       
     fetch(apiUrl, {
       method: 'POST',
@@ -277,7 +277,7 @@ const GithubCallback = () => {
                 <button
                   onClick={async () => {
                     try {
-                      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/teams/leave`, {
+                      const response = await fetch('http://localhost:5000/api/teams/leave', {
                         method: 'POST',
                         headers: {
                           'Content-Type': 'application/json',
@@ -496,16 +496,13 @@ const GithubCallback = () => {
               <div className="auth-actions">
                 <button
                   onClick={() => {
-                    const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID;
-                    // Use the actual deployment URL or localhost for development
-                    const redirectUri = process.env.NODE_ENV === 'production' 
-                      ? `${window.location.origin}/github-callback`
-                      : `${import.meta.env.VITE_FRONTEND_URL}/github-callback`;
+                    const clientId = import.meta.env.VITE_GITHUB_CLIENT_ID ;
+                    const frontendUrl = import.meta.env.VITE_FRONTEND_URL || window.location.origin;
+                    const redirectUri = `${frontendUrl.replace(/\/$/, '')}/github-callback`;
                     const scope = 'repo user';
-                    const state = Math.random().toString(36).substring(7); // Add state parameter for security
-                    // Store state in sessionStorage to verify when we return
+                    const state = Math.random().toString(36).substring(7);
                     sessionStorage.setItem('github_oauth_state', state);
-                    const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${state}`;
+                    const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scope)}&state=${encodeURIComponent(state)}`;
                     window.location.href = githubAuthUrl;
                   }}
                   className="connect-github-btn"

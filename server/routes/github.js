@@ -12,9 +12,9 @@ router.get('/test', (req, res) => {
 });
 
 // Load secrets from environment
-const CLIENT_ID = process.env.GITHUB_CLIENT_ID || 'Ov23liJ5YLg99qNXGHyu'
+const CLIENT_ID = process.env.GITHUB_CLIENT_ID;
 ;
-const CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET || 'c9c1da8a8a8edf2a2d69ac57ea8bc793b0f31e82'
+const CLIENT_SECRET = process.env.GITHUB_CLIENT_SECRET;
 ;
 
 // POST /api/github/callback
