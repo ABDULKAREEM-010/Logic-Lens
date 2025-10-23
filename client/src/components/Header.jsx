@@ -59,7 +59,7 @@ const Header = () => {
           style={{ cursor: 'pointer' }}
         >
           <div className="logo-icon">
-            <img src="public/vite11.png" alt="Logic Lens Logo" height={35} width={35} />
+            <img src="/vite11.png" alt="Logic Lens Logo" height={35} width={35} />
           </div>
           <h1 className="logo-text">Logic Lens</h1>
         </div>
